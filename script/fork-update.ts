@@ -29,7 +29,7 @@ type Options = {
 }
 
 const root = path.resolve(import.meta.dir, "..")
-const installed = path.join(process.env.HOME ?? os.homedir(), ".opencode", "bin", "opencode")
+const installed = path.join(process.env.HOME ?? os.homedir(), ".local", "bin", "opencode")
 
 export async function runForkUpdate(options: Options = {}) {
   const paths = options.paths ?? {
