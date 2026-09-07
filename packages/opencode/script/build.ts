@@ -201,6 +201,8 @@ for (const item of targets) {
     },
   })
 
+  if (item.os === "darwin") await $`codesign --force --sign - dist/${name}/bin/opencode`
+
   // Smoke test: only run if binary is for current platform
   if (item.os === process.platform && item.arch === process.arch && !item.abi) {
     const binaryPath = `dist/${name}/bin/opencode`
