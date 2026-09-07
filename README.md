@@ -97,6 +97,17 @@ OPENCODE_INSTALL_DIR=/usr/local/bin curl -fsSL https://opencode.ai/install | bas
 XDG_BIN_DIR=$HOME/.local/bin curl -fsSL https://opencode.ai/install | bash
 ```
 
+### Fork Maintenance
+
+This fork can merge an upstream release and replace its local macOS Apple Silicon binary:
+
+```bash
+bun run fork:update
+bun run fork:update -- v1.18.30
+```
+
+Run it only from a clean `dev` checkout with an `upstream` remote. It stops for merge conflicts so they can be resolved manually. Before replacement, the existing `~/.opencode/bin/opencode` is kept as a timestamped sibling backup. The built binary embeds the WebUI, so no separate frontend assets are installed.
+
 ### Agents
 
 OpenCode includes two built-in agents you can switch between with the `Tab` key.

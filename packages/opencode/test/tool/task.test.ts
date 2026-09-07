@@ -24,6 +24,8 @@ import { disposeAllInstances } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
+import { Provider } from "@/provider/provider"
+import { ProviderTest } from "../fake/provider"
 
 afterEach(async () => {
   await disposeAllInstances()
@@ -33,6 +35,20 @@ const ref = {
   providerID: ProviderV2.ID.make("test"),
   modelID: ModelV2.ID.make("test-model"),
 }
+const alternateModelID = ModelV2.ID.make("alternate-model")
+const slashModelID = ModelV2.ID.make("models/with-slash")
+const provider = ProviderTest.fake({
+  list: () =>
+    Effect.succeed({
+      [ref.providerID]: {
+        models: {
+          [ref.modelID]: {},
+          [alternateModelID]: {},
+          [slashModelID]: {},
+        },
+      } as Provider.Info,
+    }),
+})
 
 const layer = (flags: Partial<RuntimeFlags.Info> = {}) =>
   LayerNode.compile(
@@ -51,8 +67,12 @@ const layer = (flags: Partial<RuntimeFlags.Info> = {}) =>
       Database.node,
       RuntimeFlags.node,
       Ripgrep.node,
+      Provider.node,
     ]),
-    [[RuntimeFlags.node, RuntimeFlags.layer(flags)]],
+    [
+      [RuntimeFlags.node, RuntimeFlags.layer(flags)],
+      [Provider.node, provider.layer],
+    ],
   )
 
 const it = testEffect(layer())
@@ -280,7 +300,318 @@ describe("tool.task", () => {
       expect(result.metadata.sessionId).toBe(child.id)
       expect(result.output).toContain(`<task id="${child.id}" state="completed">`)
       expect(seen?.sessionID).toBe(child.id)
+      expect(seen?.model).toEqual(ref)
       expect(seen?.variant).toBe("xhigh")
+    }),
+  )
+
+  it.instance("prefixes the child prompt with the requested installed skill", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let seen: SessionPrompt.PromptInput | undefined
+
+      yield* def.execute(
+        {
+          description: "implement task",
+          prompt: "Implement the task.",
+          subagent_type: "general",
+          skill_name: "test-driven-development",
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps: stubOps({ onPrompt: (input) => (seen = input) }) },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      expect(seen?.parts).toEqual([
+        {
+          type: "text",
+          text:
+            'Before starting, invoke the installed skill named "test-driven-development". You must invoke this exact skill before beginning work.\n\nImplement the task.',
+        },
+      ])
+    }),
+  )
+
+  it.instance("forwards the child prompt unchanged when skill_name is omitted", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let seen: SessionPrompt.PromptInput | undefined
+
+      yield* def.execute(
+        {
+          description: "implement task",
+          prompt: "Implement the task.",
+          subagent_type: "general",
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps: stubOps({ onPrompt: (input) => (seen = input) }) },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      expect(seen?.parts).toEqual([{ type: "text", text: "Implement the task." }])
+    }),
+  )
+
+  it.instance("rejects an explicitly empty skill_name before prompting the child", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let prompted = false
+
+      const exit = yield* def
+        .execute(
+          {
+            description: "implement task",
+            prompt: "Implement the task.",
+            subagent_type: "general",
+            skill_name: "",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps: stubOps({ onPrompt: () => (prompted = true) }) },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+       expect(Exit.isFailure(exit)).toBe(true)
+       if (Exit.isSuccess(exit)) throw new Error("expected task failure")
+       const failure = Cause.squash(exit.cause)
+       expect(failure).toBeInstanceOf(Error)
+       if (!(failure instanceof Error)) throw new Error("expected Error defect")
+       expect(failure.message).toBe("Invalid skill_name: must not be empty")
+       expect(prompted).toBe(false)
+      expect(yield* sessions.children(chat.id)).toHaveLength(0)
+    }),
+  )
+
+  it.instance("execute uses an explicit model override without inheriting the parent variant", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let seen: SessionPrompt.PromptInput | undefined
+
+      const result = yield* def.execute(
+        {
+          description: "inspect bug",
+          prompt: "look into the cache key path",
+          subagent_type: "general",
+          model: "test/alternate-model",
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps: stubOps({ onPrompt: (input) => (seen = input) }) },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      const selected = {
+        providerID: ProviderV2.ID.make("test"),
+        modelID: ModelV2.ID.make("alternate-model"),
+      }
+      expect(seen?.model).toEqual(selected)
+      expect(seen?.variant).toBeUndefined()
+      expect(result.metadata.model).toEqual(selected)
+    }),
+  )
+
+  it.instance("parses an explicit model override at the first slash", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let seen: SessionPrompt.PromptInput | undefined
+
+      yield* def.execute(
+        {
+          description: "inspect bug",
+          prompt: "look into the cache key path",
+          subagent_type: "general",
+          model: "test/models/with-slash",
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps: stubOps({ onPrompt: (input) => (seen = input) }) },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      expect(seen?.model).toEqual({ providerID: ref.providerID, modelID: slashModelID })
+      expect(seen?.variant).toBeUndefined()
+    }),
+  )
+
+  it.instance(
+    "uses the configured subagent model when task.model is omitted",
+    () =>
+      Effect.gen(function* () {
+        const { chat, assistant } = yield* seed()
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+
+        yield* def.execute(
+          {
+            description: "inspect bug",
+            prompt: "look into the cache key path",
+            subagent_type: "general",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps: stubOps({ onPrompt: (input) => (seen = input) }) },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(seen?.model).toEqual({ providerID: ref.providerID, modelID: alternateModelID })
+        expect(seen?.variant).toBeUndefined()
+      }),
+    { config: { agent: { general: { model: "test/alternate-model" } } } },
+  )
+
+  it.instance("rejects an unavailable model override before running the child", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let prompted = false
+
+      const exit = yield* def
+        .execute(
+          {
+            description: "inspect bug",
+            prompt: "look into the cache key path",
+            subagent_type: "general",
+            model: "missing/model",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps: stubOps({ onPrompt: () => (prompted = true) }) },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(prompted).toBe(false)
+      expect(yield* sessions.children(chat.id)).toHaveLength(0)
+    }),
+  )
+
+  it.instance("rejects a model override with an empty model ID", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let prompted = false
+
+      const exit = yield* def
+        .execute(
+          {
+            description: "inspect bug",
+            prompt: "look into the cache key path",
+            subagent_type: "general",
+            model: "test/",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps: stubOps({ onPrompt: () => (prompted = true) }) },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(prompted).toBe(false)
+      expect(yield* sessions.children(chat.id)).toHaveLength(0)
+    }),
+  )
+
+  it.instance("rejects an explicitly empty model override", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let prompted = false
+
+      const exit = yield* def
+        .execute(
+          {
+            description: "inspect bug",
+            prompt: "look into the cache key path",
+            subagent_type: "general",
+            model: "",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps: stubOps({ onPrompt: () => (prompted = true) }) },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(prompted).toBe(false)
+      expect(yield* sessions.children(chat.id)).toHaveLength(0)
     }),
   )
 

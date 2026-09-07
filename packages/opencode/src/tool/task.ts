@@ -14,6 +14,9 @@ import { Effect, Exit, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Database } from "@opencode-ai/core/database/database"
+import { Provider } from "@/provider/provider"
+import { ProviderV2 } from "@opencode-ai/core/provider"
+import { ModelV2 } from "@opencode-ai/core/model"
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -49,6 +52,10 @@ const BaseParameterFields = {
       "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
   }),
   command: Schema.optional(Schema.String).annotate({ description: "The command that triggered this task" }),
+  skill_name: Schema.optional(Schema.String),
+  model: Schema.optional(Schema.String).annotate({
+    description: "Optional provider/model-id to use for this subagent",
+  }),
 }
 
 const BaseParameters = Schema.Struct(BaseParameterFields)
@@ -88,11 +95,14 @@ export const TaskTool = Tool.define(
     const scope = yield* Scope.Scope
     const flags = yield* RuntimeFlags.Service
     const database = yield* Database.Service
+    const providers = yield* Provider.Service
 
     const run = Effect.fn("TaskTool.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,
       ctx: Tool.Context,
     ) {
+      if (params.skill_name === "") return yield* Effect.fail(new Error("Invalid skill_name: must not be empty"))
+
       const cfg = yield* config.get()
       const runInBackground = params.background === true
       if (runInBackground && !flags.experimentalBackgroundSubagents) {
@@ -133,6 +143,34 @@ export const TaskTool = Tool.define(
         return yield* Effect.fail(new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`))
       }
 
+      const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(
+        Effect.provideService(Database.Service, database),
+        Effect.orDie,
+      )
+      if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
+      const variant = msg.info.variant
+
+      const requestedModel = params.model
+      const model = requestedModel !== undefined
+        ? yield* Effect.gen(function* () {
+            const separator = requestedModel.indexOf("/")
+            const provider = requestedModel.slice(0, separator)
+            const model = requestedModel.slice(separator + 1)
+            if (separator < 1 || !model) return yield* Effect.fail(new Error(`Invalid model: ${requestedModel}`))
+
+            const available = yield* providers.list()
+            const providerID = ProviderV2.ID.make(provider)
+            const modelID = ModelV2.ID.make(model)
+            if (!available[providerID]?.models[modelID]) {
+              return yield* Effect.fail(new Error(`Invalid model: ${requestedModel}`))
+            }
+            return { providerID, modelID }
+          })
+        : next.model ?? {
+            modelID: msg.info.modelID,
+            providerID: msg.info.providerID,
+          }
+
       const session = params.task_id
         ? yield* sessions.get(SessionID.make(params.task_id)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
@@ -171,17 +209,6 @@ export const TaskTool = Tool.define(
           ],
         }))
 
-      const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(
-        Effect.provideService(Database.Service, database),
-        Effect.orDie,
-      )
-      if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
-      const variant = msg.info.variant
-
-      const model = next.model ?? {
-        modelID: msg.info.modelID,
-        providerID: msg.info.providerID,
-      }
       const metadata = {
         parentSessionId: ctx.sessionID,
         sessionId: nextSession.id,
@@ -198,7 +225,10 @@ export const TaskTool = Tool.define(
       if (!ops) return yield* Effect.fail(new Error("TaskTool requires promptOps in ctx.extra"))
 
       const runTask = Effect.fn("TaskTool.runTask")(function* () {
-        const parts = yield* ops.resolvePromptParts(params.prompt)
+        const prompt = params.skill_name
+          ? `Before starting, invoke the installed skill named "${params.skill_name}". You must invoke this exact skill before beginning work.\n\n${params.prompt}`
+          : params.prompt
+        const parts = yield* ops.resolvePromptParts(prompt)
         const result = yield* ops.prompt({
           messageID: MessageID.ascending(),
           sessionID: nextSession.id,
@@ -206,7 +236,7 @@ export const TaskTool = Tool.define(
             modelID: model.modelID,
             providerID: model.providerID,
           },
-          variant: next.model ? undefined : variant,
+          variant: requestedModel !== undefined || next.model ? undefined : variant,
           agent: next.name,
           parts,
         })
