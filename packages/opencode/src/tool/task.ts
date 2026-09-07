@@ -52,7 +52,9 @@ const BaseParameterFields = {
       "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
   }),
   command: Schema.optional(Schema.String).annotate({ description: "The command that triggered this task" }),
-  skill_name: Schema.optional(Schema.String),
+  skill_name: Schema.optional(Schema.String).annotate({
+    description: "The installed skill the subagent must invoke before starting work",
+  }),
   model: Schema.optional(Schema.String).annotate({
     description: "Optional provider/model-id to use for this subagent",
   }),
