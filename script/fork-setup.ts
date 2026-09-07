@@ -18,7 +18,9 @@ export async function runForkSetup(options: {
   })
   let remote = ""
   try { remote = (await run("git remote get-url upstream")).trim() } catch {}
-  if (remote && remote !== upstream) throw new Error(`upstream must be ${upstream}`)
+  if (remote && ![upstream, "git@github.com:anomalyco/opencode.git", "ssh://git@github.com/anomalyco/opencode.git"].includes(remote)) {
+    throw new Error(`upstream must be ${upstream}`)
+  }
   if (!remote) await run(`git remote add upstream ${upstream}`)
   await (options.update ?? runForkUpdate)({ tag: options.tag })
 }

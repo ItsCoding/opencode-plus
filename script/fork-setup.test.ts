@@ -20,3 +20,10 @@ test("adds upstream and delegates to the updater", async () => {
   ])
   expect(updated).toBe(true)
 })
+
+test("accepts the official SSH upstream URL", async () => {
+  await runForkSetup({
+    run: () => "git@github.com:anomalyco/opencode.git\n",
+    update: async () => {},
+  })
+})
