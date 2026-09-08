@@ -1,13 +1,20 @@
-import { createEffect, Suspense, type ParentProps } from "solid-js"
+import { createEffect, Show, Suspense, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { DebugBar } from "@/components/debug-bar"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
+import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
+import { useSettings } from "@/context/settings"
+import { UnifiedSidebar } from "@/pages/layout/unified-sidebar"
+import { createUnifiedSidebarController } from "@/pages/layout/unified-sidebar-controller"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
 
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
+  const layout = useLayout()
+  const settings = useSettings()
+  const sidebar = createUnifiedSidebarController()
   const [state, setState] = createStore({ debugTools: true })
 
   createEffect(() => setV2Toast(true))
@@ -38,9 +45,48 @@ export default function NewLayout(props: ParentProps) {
             : undefined
         }
       />
-      <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
-        <Suspense>{props.children}</Suspense>
-      </main>
+      <div class="flex-1 min-h-0 min-w-0 flex">
+        <Show when={layout.sidebar.opened()}>
+          <div class="hidden xl:block shrink-0">
+            <UnifiedSidebar
+              controller={sidebar}
+              density={settings.appearance.sidebarDensity()}
+              onClose={layout.sidebar.close}
+            />
+          </div>
+        </Show>
+        <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
+          <Suspense>{props.children}</Suspense>
+        </main>
+      </div>
+      <div class="xl:hidden">
+        <div
+          classList={{
+            "fixed inset-x-0 top-9 bottom-0 z-40 bg-v2-overlay-simple-overlay-scrim transition-opacity duration-200": true,
+            "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
+            "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
+          }}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) layout.mobileSidebar.hide()
+          }}
+        />
+        <div
+          classList={{
+            "fixed inset-y-0 start-0 top-9 z-50 w-full max-w-[400px] overflow-hidden border-e border-v2-border-weak-base bg-v2-background-bg-base transition-transform duration-200 ease-out":
+              true,
+            "translate-x-0": layout.mobileSidebar.opened(),
+            "ltr:-translate-x-full rtl:translate-x-full": !layout.mobileSidebar.opened(),
+          }}
+          inert={!layout.mobileSidebar.opened()}
+        >
+          <UnifiedSidebar
+            controller={sidebar}
+            density={settings.appearance.sidebarDensity()}
+            mobile
+            onClose={layout.mobileSidebar.hide}
+          />
+        </div>
+      </div>
       {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
       <TabsInfoPopup />
       <ToastRegion v2 />
