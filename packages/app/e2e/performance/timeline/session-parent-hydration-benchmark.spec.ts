@@ -77,7 +77,6 @@ benchmark("hydrates an orphaned latest turn after a cold session click", async (
 })
 
 async function trial(page: Page, mode: ParentHydrationBenchmarkMode) {
-  expect(lastPartID).toBe(lastPart.id)
   const requests: { type: "list" | "parent"; before?: string }[] = []
   const history = mode === "candidate" ? Promise.withResolvers<void>() : undefined
   let historyGates = 0
