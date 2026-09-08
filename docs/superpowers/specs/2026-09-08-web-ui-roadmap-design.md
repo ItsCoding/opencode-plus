@@ -136,13 +136,13 @@ The first release manages configured package or path specifiers only:
 
 - List configured entries and their source scope.
 - Add or remove an entry.
-- Show available load status or error information when the runtime exposes it.
+- Show `configured`, `ready`, or `error` status. An entry that has not loaded since the last required reload remains `configured`; loader failures expose a sanitized error.
 
 OpenCode remains responsible for package loading. There is no marketplace, catalog, plugin source editor, or arbitrary plugin-options form.
 
 ### Common config
 
-Guided controls cover common permissions, default agent/model, sharing, and other fields selected during implementation planning. Existing unknown JSONC fields are preserved.
+The first guided Config section is limited to permission defaults, default agent, default model, and sharing policy. Existing unknown JSONC fields are preserved.
 
 Desktop may offer `Open config file`. Browser clients may show and copy the resolved path but do not receive raw secret-bearing config content.
 
@@ -191,7 +191,7 @@ PTY creation records:
 - Owning session ID.
 - Originating message/tool-call ID.
 - Title and agent-provided description.
-- Working directory and command metadata already safe to expose.
+- Working directory and command metadata, available only through the authorized PTY contracts.
 - Creation, completion, and exit state timestamps.
 
 Ordinary one-shot shell calls remain normal tool calls and do not become PTYs.
@@ -222,6 +222,8 @@ Analytics stores two deletion-independent fact sets without cascading session fo
 Writes occur at existing durable projection boundaries. Upserts make retries idempotent. Deleting a session does not delete analytics.
 
 A one-time best-effort backfill scans retained messages and tool parts and then records completion. Missing or malformed historical entries are skipped and reported instead of blocking startup.
+
+Dashboard labels use current project/session names while those records exist and fall back to the captured historical labels after deletion. Tool calls without complete timing data remain countable but are excluded from duration statistics.
 
 Daily and dimensional summaries are computed from fact rows through a read-only aggregate API. No speculative pre-aggregation table is introduced initially.
 
@@ -254,7 +256,7 @@ Stored cost is labeled `Estimated cost` because it uses OpenCode model pricing a
 
 ## Phase 6: Codex Plan Usage
 
-A fork-owned server adapter reuses the existing OpenAI Codex OAuth refresh and ChatGPT account ID handling. It calls the Codex usage endpoint server-side and normalizes:
+A fork-owned server adapter reuses the existing OpenAI Codex OAuth refresh and ChatGPT account ID handling. It calls the current ChatGPT Codex `/backend-api/wham/usage` endpoint server-side and normalizes:
 
 - Plan type.
 - Primary and secondary usage windows.
