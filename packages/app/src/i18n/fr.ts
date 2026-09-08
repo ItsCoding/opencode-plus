@@ -43,7 +43,7 @@ export const dict = {
   "desktop.menu.supportForum": "Forum d'assistance",
   "desktop.menu.shareFeedback": "Envoyer des commentaires",
   "desktop.menu.reportBug": "Signaler un bogue",
-  "desktop.menu.ariaLabel": "Menu OpenCode",
+  "desktop.menu.ariaLabel": "Menu OpenCode+",
 
   "desktop.updater.dialog.checkFailed.message": "La recherche de mises à jour a échoué.",
   "desktop.updater.dialog.checkFailed.title": "Erreur de mise à jour",
@@ -835,7 +835,7 @@ export const dict = {
   "sidebar.project.clearNotifications": "Effacer les notifications",
   "sidebar.empty.title": "Aucun projet ouvert",
   "sidebar.empty.description": "Ouvrez un projet pour commencer",
-  "app.name.desktop": "OpenCode Desktop",
+  "app.name.desktop": "OpenCode+ Desktop",
   "settings.section.desktop": "Application de bureau",
   "settings.section.server": "Serveur",
   "settings.tab.general": "Général",

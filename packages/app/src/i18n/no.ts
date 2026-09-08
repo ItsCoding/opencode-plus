@@ -46,7 +46,7 @@ export const dict = {
   "desktop.menu.supportForum": "Brukerstøtteforum",
   "desktop.menu.shareFeedback": "Del tilbakemelding",
   "desktop.menu.reportBug": "Rapporter en feil",
-  "desktop.menu.ariaLabel": "OpenCode-meny",
+  "desktop.menu.ariaLabel": "OpenCode+-meny",
 
   "desktop.updater.dialog.checkFailed.message": "Søket etter oppdateringer mislyktes.",
   "desktop.updater.dialog.checkFailed.title": "Oppdateringsfeil",
@@ -755,7 +755,7 @@ export const dict = {
   "sidebar.project.viewAllSessions": "Vis alle sesjoner",
   "sidebar.project.clearNotifications": "Fjern varsler",
 
-  "app.name.desktop": "OpenCode Desktop",
+  "app.name.desktop": "OpenCode+ Desktop",
 
   "settings.section.desktop": "Skrivebord",
   "settings.section.server": "Server",

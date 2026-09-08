@@ -1,7 +1,7 @@
 import { DESKTOP_NATIVE_KEYS } from "./desktop-native"
 
 const desktop = [
-  "OpenCode",
+  "OpenCode+",
   "Skrá",
   "Breyta",
   "Skoða",
@@ -45,7 +45,7 @@ const desktop = [
   "Aðstoðarspjallborð",
   "Deila ábendingu",
   "Tilkynna villu",
-  "OpenCode-valmynd",
+  "OpenCode+-valmynd",
   "Athugun á uppfærslu mistókst.",
   "Villa í uppfærslu",
   "Þú ert með nýjustu útgáfuna.",
@@ -910,7 +910,7 @@ export const dict = {
   "debugBar.direction.tip": "Þvingaðu stefnu útlits forritsins í heild sinni án þess að breyta valnu tungumáli",
   "debugBar.direction.ltr": "LTR",
   "debugBar.direction.rtl": "RTL",
-  "app.name.desktop": "OpenCode skjáborð",
+  "app.name.desktop": "OpenCode+ skjáborð",
   "settings.section.desktop": "Skrifborð",
   "settings.section.server": "Netþjónn",
   "settings.tab.general": "Almennt",
