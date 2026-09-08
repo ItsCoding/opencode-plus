@@ -45,7 +45,7 @@ describe("fork update", () => {
         return ""
       },
       fs: {
-        exists: async () => false,
+        exists: async (value) => value === paths.installed,
         copy: async (from, to) => copies.push([from, to]),
         rename: async (from, to) => renames.push([from, to]),
       },
@@ -67,6 +67,30 @@ describe("fork update", () => {
       [paths.binary, "/home/alex/.opencode/bin/opencode.2026-09-07T12-34-56-000Z.tmp"],
     ])
     expect(renames).toEqual([["/home/alex/.opencode/bin/opencode.2026-09-07T12-34-56-000Z.tmp", paths.installed]])
+  })
+
+  test("installs without a backup when no binary is installed", async () => {
+    const copies: [string, string][] = []
+
+    await runForkUpdate({
+      tag: "v1.18.30",
+      platform: "darwin",
+      paths,
+      now: () => new Date("2026-09-07T12:34:56.000Z"),
+      run(command) {
+        if (command === "git branch --show-current") return "dev\n"
+        if (command === "git remote get-url upstream") return "https://github.com/anomalyco/opencode.git\n"
+        if (command === "git ls-remote --tags upstream v*") return "abc123\trefs/tags/v1.18.30\n"
+        return ""
+      },
+      fs: {
+        exists: async () => false,
+        copy: async (from, to) => copies.push([from, to]),
+        rename: async () => {},
+      },
+    })
+
+    expect(copies).toEqual([[paths.binary, "/home/alex/.opencode/bin/opencode.2026-09-07T12-34-56-000Z.tmp"]])
   })
 
   test("selects the newest release tag advertised by upstream, not a local tag", async () => {

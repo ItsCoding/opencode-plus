@@ -66,8 +66,10 @@ export async function runForkUpdate(options: Options = {}) {
   const stamp = (options.now ?? (() => new Date()))().toISOString().replaceAll(":", "-").replace(".", "-")
   const backup = `${paths.installed}.${stamp}.bak`
   const temporary = `${paths.installed}.${stamp}.tmp`
-  if (await fs.exists(backup)) throw new Error(`backup already exists: ${backup}`)
-  await fs.copy(paths.installed, backup)
+  if (await fs.exists(paths.installed)) {
+    if (await fs.exists(backup)) throw new Error(`backup already exists: ${backup}`)
+    await fs.copy(paths.installed, backup)
+  }
   await fs.copy(paths.binary, temporary)
   await fs.rename(temporary, paths.installed)
 }
