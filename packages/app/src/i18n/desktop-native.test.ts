@@ -85,6 +85,12 @@ describe("desktop native translations", () => {
     expect(parseDesktopNativeBundle(bundle)).toEqual(bundle)
   })
 
+  test("uses the fork marker for the native app menu in every locale", () => {
+    for (const locale of DESKTOP_NATIVE_LOCALES) {
+      expect(createDesktopNativeBundle(locale, () => "OpenCode").messages["desktop.menu.app"]).toBe("OpenCode+")
+    }
+  })
+
   test("rejects unsupported locales and mismatched key sets", () => {
     const bundle = createDesktopNativeBundle("en", (key) => DESKTOP_NATIVE_ENGLISH[key])
     expect(parseDesktopNativeBundle({ ...bundle, locale: "en-US" })).toBeUndefined()

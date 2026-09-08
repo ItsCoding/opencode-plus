@@ -223,7 +223,7 @@ function locale(value: string) {
 }
 
 export const DESKTOP_NATIVE_ENGLISH = {
-  "desktop.menu.app": "OpenCode",
+  "desktop.menu.app": "OpenCode+",
   "desktop.menu.file": "File",
   "desktop.menu.edit": "Edit",
   "desktop.menu.view": "View",
@@ -335,7 +335,9 @@ export function createDesktopNativeBundle(
 ): DesktopNativeBundle {
   return {
     locale,
-    messages: Object.fromEntries(DESKTOP_NATIVE_KEYS.map((key) => [key, translate(key)])) as DesktopNativeMessages,
+    messages: Object.fromEntries(
+      DESKTOP_NATIVE_KEYS.map((key) => [key, key === "desktop.menu.app" ? "OpenCode+" : translate(key)]),
+    ) as DesktopNativeMessages,
   }
 }
 
