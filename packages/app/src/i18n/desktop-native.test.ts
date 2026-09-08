@@ -120,6 +120,7 @@ describe("desktop native locale detection", () => {
   test("uses Unicode likely subtags for script-sensitive bundles", () => {
     expect(detectDesktopNativeLocale(["zh-TW"])).toBe("zht")
     expect(detectDesktopNativeLocale(["zh-SG"])).toBe("zh")
+    expect(detectDesktopNativeLocale(["pa-Aran-PK"])).toBe("pa")
     expect(detectDesktopNativeLocale(["pa-PK"])).toBe("pa")
     expect(detectDesktopNativeLocale(["pa-IN", "fr"])).toBe("fr")
     expect(detectDesktopNativeLocale(["az-Cyrl", "de"])).toBe("de")
