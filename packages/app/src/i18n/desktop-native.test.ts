@@ -122,6 +122,7 @@ describe("desktop native locale detection", () => {
     expect(detectDesktopNativeLocale(["zh-SG"])).toBe("zh")
     expect(detectDesktopNativeLocale(["pa-Aran-PK"])).toBe("pa")
     expect(detectDesktopNativeLocale(["pa-PK"])).toBe("pa")
+    expect(detectDesktopNativeLocale(["ar-Aran"])).toBe("en")
     expect(detectDesktopNativeLocale(["pa-IN", "fr"])).toBe("fr")
     expect(detectDesktopNativeLocale(["az-Cyrl", "de"])).toBe("de")
     expect(detectDesktopNativeLocale(["sr-Cyrl"])).toBe("sr")
