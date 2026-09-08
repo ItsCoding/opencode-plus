@@ -1,5 +1,6 @@
-import { createEffect, Show, Suspense, type ParentProps } from "solid-js"
+import { createEffect, createMemo, Show, Suspense, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
+import { createMediaQuery } from "@solid-primitives/media"
 import { DebugBar } from "@/components/debug-bar"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
@@ -15,6 +16,8 @@ export default function NewLayout(props: ParentProps) {
   const layout = useLayout()
   const settings = useSettings()
   const sidebar = createUnifiedSidebarController()
+  const mobile = createMediaQuery("(max-width: 767px)")
+  const bottom = createMemo(() => mobile() && settings.general.mobileTitlebarPosition() === "bottom")
   const [state, setState] = createStore({ debugTools: true })
 
   createEffect(() => setV2Toast(true))
@@ -62,7 +65,9 @@ export default function NewLayout(props: ParentProps) {
       <div class="xl:hidden">
         <div
           classList={{
-            "fixed inset-x-0 top-9 bottom-0 z-40 bg-v2-overlay-simple-overlay-scrim transition-opacity duration-200": true,
+            "fixed inset-x-0 z-40 bg-v2-overlay-simple-overlay-scrim transition-opacity duration-200": true,
+            "top-0 bottom-9": bottom(),
+            "top-9 bottom-0": !bottom(),
             "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
             "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
           }}
@@ -72,8 +77,10 @@ export default function NewLayout(props: ParentProps) {
         />
         <div
           classList={{
-            "fixed inset-y-0 start-0 top-9 z-50 w-full max-w-[400px] overflow-hidden border-e border-v2-border-weak-base bg-v2-background-bg-base transition-transform duration-200 ease-out":
+            "fixed start-0 z-50 w-full max-w-[400px] overflow-hidden border-e border-v2-border-weak-base bg-v2-background-bg-base transition-transform duration-200 ease-out":
               true,
+            "top-0 bottom-9": bottom(),
+            "top-9 bottom-0": !bottom(),
             "translate-x-0": layout.mobileSidebar.opened(),
             "ltr:-translate-x-full rtl:translate-x-full": !layout.mobileSidebar.opened(),
           }}

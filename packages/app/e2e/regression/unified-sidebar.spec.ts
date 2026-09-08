@@ -40,6 +40,55 @@ test("mounts the unified sidebar and navigates sessions without titlebar tabs", 
   await expect(page.locator('[data-session-id="session-b"]:visible')).toHaveClass(/active/)
 })
 
+test("keeps the bottom mobile titlebar outside the sidebar drawer and backdrop", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await mockOpenCodeServer(page, {
+    directory,
+    project: { id: projectID, worktree: directory, name: "Unified Sidebar", vcs: "git", sandboxes: [] },
+    sessions: [sessionA, sessionB],
+    provider: { all: [], connected: [], default: {} },
+    pageMessages: () => ({ items: [] }),
+  })
+  await page.addInitScript(
+    ({ server, sessionA, sessionB }) => {
+      localStorage.setItem(
+        "settings.v3",
+        JSON.stringify({ general: { newLayoutDesigns: true, mobileTitlebarPosition: "bottom" } }),
+      )
+      localStorage.setItem("opencode.global.dat:layout", JSON.stringify({ mobileSidebar: { opened: true } }))
+      localStorage.setItem(
+        "opencode.window.browser.dat:tabs",
+        JSON.stringify([
+          { type: "session", server, sessionId: sessionA },
+          { type: "session", server, sessionId: sessionB },
+        ]),
+      )
+    },
+    { server, sessionA: sessionA.id, sessionB: sessionB.id },
+  )
+
+  await page.goto(`/server/${base64Encode(server)}/session/${sessionA.id}`)
+
+  const titlebar = page.locator('[data-slot="titlebar-v2"]')
+  const drawer = page.locator('[data-component="unified-sidebar"]:visible')
+  const drawerShell = drawer.locator("..")
+  const backdrop = page.locator("div.bg-v2-overlay-simple-overlay-scrim")
+  await expect(drawer).toBeVisible()
+  await expect(backdrop).toBeVisible()
+  const titlebarBox = await titlebar.boundingBox()
+  const drawerBox = await drawerShell.boundingBox()
+  const backdropBox = await backdrop.boundingBox()
+  if (!titlebarBox || !drawerBox || !backdropBox) throw new Error("sidebar geometry is unavailable")
+  expect(drawerBox.y).toBe(0)
+  expect(backdropBox.y).toBe(0)
+  expect(drawerBox.y + drawerBox.height).toBeLessThanOrEqual(titlebarBox.y + 1)
+  expect(backdropBox.y + backdropBox.height).toBeLessThanOrEqual(titlebarBox.y + 1)
+  await expect(drawerShell).not.toHaveAttribute("inert")
+
+  await titlebar.locator('button[aria-expanded="true"]').click()
+  await expect(drawerShell).toHaveAttribute("inert", "")
+})
+
 function session(id: string, title: string) {
   return {
     id,
