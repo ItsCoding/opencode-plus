@@ -83,6 +83,7 @@ import {
 } from "@/pages/session/session-panel-width"
 import { SessionSidePanel } from "@/pages/session/session-side-panel"
 import { ContextualInspector } from "@/pages/session/contextual-inspector"
+import { countLoadedFiles } from "@/pages/session/contextual-inspector-state"
 import { sessionPanelLayout } from "@/pages/session/session-panel-layout"
 import { SessionReviewEmptyChangesV2 } from "@opencode-ai/session-ui/v2/session-review-empty-changes-v2"
 import { SessionReviewEmptyNoGitV2 } from "@opencode-ai/session-ui/v2/session-review-empty-no-git-v2"
@@ -2381,7 +2382,7 @@ export default function Page() {
               </Show>
             </div>
           </Show>
-          <Show when={isDesktop() && !!params.id}>
+          <Show when={!!params.id}>
             <ContextualInspector
               review={{
                 opened: view().reviewPanel.opened,
@@ -2391,7 +2392,7 @@ export default function Page() {
               }}
               files={{
                 opened: layout.fileTree.opened,
-                count: () => file.tree.children("").length,
+                count: () => countLoadedFiles(file.tree.children, (path) => !!file.tree.state(path)?.loaded),
                 open: layout.fileTree.open,
                 close: layout.fileTree.close,
               }}

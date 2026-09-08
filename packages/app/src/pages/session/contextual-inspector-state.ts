@@ -6,6 +6,15 @@ export type InspectorEvent =
   | { type: "toggle"; tool: InspectorTool }
   | { type: "close"; tool: InspectorTool }
 
+export function countLoadedFiles(
+  children: (path: string) => readonly { path: string; type: "file" | "directory" }[],
+  loaded: (path: string) => boolean,
+) {
+  const count = (path: string): number =>
+    children(path).reduce((total, node) => total + (node.type === "file" ? 1 : loaded(node.path) ? count(node.path) : 0), 0)
+  return count("")
+}
+
 export function updateInspector(state: InspectorState, event: InspectorEvent): InspectorState {
   if (event.type === "enter") return event.hoverable ? { ...state, hovered: event.tool } : state
   if (event.type === "leave") return state.hovered === event.tool ? { ...state, hovered: undefined } : state

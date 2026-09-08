@@ -1,5 +1,16 @@
 import { expect, test } from "bun:test"
-import { updateInspector } from "./contextual-inspector-state"
+import { countLoadedFiles, updateInspector } from "./contextual-inspector-state"
+
+test("counts loaded files recursively without counting directories", () => {
+  const children = new Map<string, readonly { path: string; type: "file" | "directory" }[]>([
+    ["", [{ path: "src", type: "directory" }, { path: "README.md", type: "file" }]],
+    ["src", [{ path: "src/nested.ts", type: "file" }, { path: "src/lib", type: "directory" }]],
+    ["src/lib", [{ path: "src/lib/deep.ts", type: "file" }]],
+  ])
+  const loaded = new Set(["", "src", "src/lib"])
+
+  expect(countLoadedFiles((path) => children.get(path) ?? [], (path) => loaded.has(path))).toBe(3)
+})
 
 test("previews on hover without pinning", () => {
   expect(updateInspector({}, { type: "enter", tool: "review", hoverable: true })).toEqual({ hovered: "review" })

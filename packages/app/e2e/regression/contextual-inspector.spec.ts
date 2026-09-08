@@ -36,7 +36,7 @@ test("previews on hover, pins on click, and preserves the full panel width", asy
 })
 
 test.describe("touch", () => {
-  test.use({ hasTouch: true, isMobile: true })
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } })
 
   test("pins on tap without opening a hover preview", async ({ page }) => {
     await setup(page)
@@ -44,14 +44,28 @@ test.describe("touch", () => {
 
     const inspector = page.locator('[data-component="contextual-inspector"]')
     const reviewButton = inspector.getByRole("button", { name: "Review" })
+    const preview = page.locator('[data-component="contextual-inspector-preview"]')
     await expect(reviewButton).toBeVisible()
+    await expect(preview).toHaveCount(0)
     await reviewButton.tap()
     await expect(reviewButton).toHaveAttribute("aria-pressed", "true")
-    await expect(page.locator('[data-component="contextual-inspector-preview"]')).toHaveCount(0)
+    await expect(preview).toHaveCount(0)
   })
 })
 
-async function setup(page: Parameters<typeof mockOpenCodeServer>[0]) {
+test("places the RTL preview and tooltip at the rail inline-start", async ({ page }) => {
+  await setup(page, "ar")
+  await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
+
+  const reviewButton = page.locator('[data-component="contextual-inspector"]').getByRole("button", { name: "مراجعة" })
+  await expect(reviewButton).toBeVisible()
+  await reviewButton.hover()
+  const preview = page.locator('[data-component="contextual-inspector-preview"]')
+  await expect(preview).toHaveAttribute("data-placement", "right")
+  await expect(page.locator('[data-component="tooltip-v2"]')).toHaveAttribute("data-placement", "right")
+})
+
+async function setup(page: Parameters<typeof mockOpenCodeServer>[0], locale?: string) {
   await mockOpenCodeServer(page, {
     directory,
     project: { id: projectID, worktree: directory, name: "Contextual Inspector", vcs: "git", sandboxes: [] },
@@ -75,4 +89,9 @@ async function setup(page: Parameters<typeof mockOpenCodeServer>[0]) {
     localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
     localStorage.setItem("opencode.global.dat:layout", JSON.stringify({ review: { panelOpened: true } }))
   })
+  if (locale) {
+    await page.addInitScript((value) => {
+      localStorage.setItem("opencode.global.dat:language", JSON.stringify({ locale: value }))
+    }, locale)
+  }
 }

@@ -15,6 +15,7 @@ export function ContextualInspector(props: {
   const language = useLanguage()
   const hoverable = createMediaQuery("(hover: hover)")
   const [state, setState] = createStore<{ hovered?: InspectorTool; pinned?: InspectorTool }>({})
+  const placement = (): "left" | "right" => (language.direction() === "rtl" ? "right" : "left")
   const items = [
     { tool: "review" as const, label: () => language.t("session.tab.review"), icon: "review" as const, panel: props.review },
     { tool: "files" as const, label: () => language.t("session.files.all"), icon: "file-tree" as const, panel: props.files },
@@ -49,10 +50,10 @@ export function ContextualInspector(props: {
             openDelay={150}
             closeDelay={0}
             ignoreSafeArea
-            placement="left"
+            placement={placement()}
           >
             <Kobalte.Trigger as="div">
-              <TooltipV2 value={item.label()} placement="left">
+              <TooltipV2 value={item.label()} placement={placement()}>
                 <IconButtonV2
                   type="button"
                   icon={<Icon name={item.icon} />}
@@ -82,6 +83,7 @@ export function ContextualInspector(props: {
             <Kobalte.Portal>
               <Kobalte.Content
                 data-component="contextual-inspector-preview"
+                data-placement={placement()}
                 ref={(element) => {
                   const theme = element.closest("[data-theme]")?.getAttribute("data-theme")
                   if (theme) element.setAttribute("data-theme", theme)
