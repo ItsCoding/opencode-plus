@@ -468,10 +468,7 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       },
       appearance: {
         fontSize: withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize),
-        sidebarDensity: withFallback(
-          () => sidebarDensity(store.appearance?.sidebarDensity),
-          defaultSettings.appearance.sidebarDensity,
-        ),
+        sidebarDensity: createMemo(() => sidebarDensity(store.appearance?.sidebarDensity)),
         setSidebarDensity(value: SidebarDensity) {
           setStore("appearance", "sidebarDensity", value)
         },
