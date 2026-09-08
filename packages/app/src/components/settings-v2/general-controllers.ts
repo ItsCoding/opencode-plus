@@ -89,6 +89,11 @@ export function createAppearanceSettingsController() {
       current: createMemo(() => themes().find((option) => option.id === theme.themeId())),
       select: (option: { id: string } | null) => option && theme.setTheme(option.id),
     },
+    density: {
+      options: ["comfortable", "compact"] as const,
+      current: settings.appearance.sidebarDensity,
+      select: settings.appearance.setSidebarDensity,
+    },
     fonts: {
       ui: createMemo(() => ({
         value: sansInput(settings.appearance.uiFont()),
