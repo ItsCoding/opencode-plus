@@ -19,7 +19,12 @@ benchmark("benchmarks cold and hot session tab switching", async ({ browser, rep
   for (const mode of ["cold", "hot"] as const) {
     for (let run = 0; run < 5; run++) {
       results[mode].push(
-        await withBenchmarkPage(browser, `session-tab-switch-${mode}-${run}`, (page) => trial(page, mode), testInfo),
+          await withBenchmarkPage(
+            browser,
+            `session-tab-switch-${mode}-${run}`,
+            (page) => trial(page, mode, { newLayoutDesigns: true }),
+            testInfo,
+          ),
       )
     }
   }
@@ -60,7 +65,12 @@ async function trial(
 ) {
   const reviewDiffs = options?.newLayoutDesigns ? createReviewDiffs() : undefined
   await mockStressTimeline(page, { vcsDiff: reviewDiffs })
-  if (options?.newLayoutDesigns) await installTimelineSettings(page)
+  if (options?.newLayoutDesigns) {
+    await installTimelineSettings(page)
+    await page.addInitScript(() => {
+      localStorage.setItem("opencode.global.dat:layout", JSON.stringify({ sidebar: { opened: true } }))
+    })
+  }
   await installStressSessionTabs(page)
   if (mode === "hot") {
     await page.goto(stressSessionHref(fixture.targetID))
@@ -124,9 +134,9 @@ function summarizeReviewPane(results: Record<"closed" | "open", Record<"cold" | 
 
 async function switchSession(page: Page, sessionID: string, title: string) {
   const href = stressSessionHref(sessionID)
-  const tab = page.locator(`[data-slot="titlebar-tabs"] a[href="${href}"]`).first()
-  await expect(tab).toBeVisible()
-  await tab.click()
+  const row = page.locator(`div:not([inert]) > [data-component="unified-sidebar"] [data-session-id="${sessionID}"]`)
+  await expect(row).toBeVisible()
+  await row.click()
   await expectSessionTitle(page, title)
 }
 
