@@ -9,16 +9,17 @@ type FirstNavigationProbe = {
 export async function measureFirstNavigation(
   page: Page,
   input: {
-    href: string
     destinationPath: string
+    partialDestinationPath?: boolean
     sourceSelector: string
     destinationSelector: string
     contentSelector: string
+    triggerSelector: string
     navigate: () => Promise<void>
   },
 ) {
   await page.evaluate(
-    ({ href, destinationPath, sourceSelector, destinationSelector, contentSelector }) => {
+    ({ destinationPath, partialDestinationPath, sourceSelector, destinationSelector, contentSelector, triggerSelector }) => {
       const samples: FirstNavigationSample[] = []
       let started: number | undefined
       let running = true
@@ -36,7 +37,10 @@ export async function measureFirstNavigation(
             samples.push({
               observedAtMs: performance.now() - started,
               source: visible(sourceSelector),
-              destination: `${location.pathname}${location.search}` === destinationPath && visible(destinationSelector),
+              destination:
+                (partialDestinationPath
+                  ? `${location.pathname}${location.search}`.startsWith(destinationPath)
+                  : `${location.pathname}${location.search}` === destinationPath) && visible(destinationSelector),
               content: visible(contentSelector),
               pathname: `${location.pathname}${location.search}`,
               center: document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.textContent?.slice(0, 80),
@@ -48,8 +52,7 @@ export async function measureFirstNavigation(
       document.addEventListener(
         "click",
         (event) => {
-          const link = event.target instanceof Element ? event.target.closest("a") : undefined
-          if (link?.getAttribute("href") !== href) return
+          if (!(event.target instanceof Element) || !event.target.closest(triggerSelector)) return
           started = performance.now()
           sample()
         },
@@ -63,11 +66,12 @@ export async function measureFirstNavigation(
       }
     },
     {
-      href: input.href,
       destinationPath: input.destinationPath,
+      partialDestinationPath: input.partialDestinationPath,
       sourceSelector: input.sourceSelector,
       destinationSelector: input.destinationSelector,
       contentSelector: input.contentSelector,
+      triggerSelector: input.triggerSelector,
     },
   )
   await input.navigate()

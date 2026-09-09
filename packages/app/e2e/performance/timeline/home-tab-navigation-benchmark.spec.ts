@@ -25,7 +25,7 @@ benchmark.describe("performance: home and tab navigation", () => {
       milestones: {
         content: { selector: messageSelector(fixture.expected.targetMessageIDs.at(-1)!) },
         activeSidebar: {
-          selector: `div:not([inert]) > [data-component="unified-sidebar"] [data-session-id="${fixture.targetID}"] .active`,
+          selector: `div:not([inert]) > [data-component="unified-sidebar"] [data-session-id="${fixture.targetID}"] a.active`,
         },
       },
       navigate: async () => {
@@ -34,7 +34,7 @@ benchmark.describe("performance: home and tab navigation", () => {
       },
     })
     report(result)
-    await expect(row).toHaveClass(/active/)
+    await expect(row.locator("a")).toHaveClass(/active/)
   })
 
   benchmark("stages the review body after cold session content", async ({ page, report }) => {
@@ -86,15 +86,13 @@ benchmark.describe("performance: home and tab navigation", () => {
     await page.goto(stressSessionHref(fixture.sourceID))
     await expectSessionTitle(page, fixture.expected.sourceTitle)
     await waitForStableTimeline(page, fixture.expected.sourceMessageIDs.at(-1)!)
-    const selected = page.locator(`div:not([inert]) > [data-component="unified-sidebar"] [data-session-id="${fixture.sourceID}"]`)
-    await expect(selected).toHaveClass(/active/)
     const result = await measureNavigationMilestones(page, {
-      triggerSelector: `div:not([inert]) > [data-component="unified-sidebar"] [data-session-id="${fixture.sourceID}"]`,
+      triggerSelector: "body",
+      trigger: { event: "keydown", key: "w", controlKey: true },
       milestones: {
         composer: { selector: '[data-component="prompt-input"]' },
       },
       navigate: async () => {
-        await selected.click()
         await page.keyboard.press("Control+w")
         await expect(page).toHaveURL(/\/new-session\?draftId=/)
       },

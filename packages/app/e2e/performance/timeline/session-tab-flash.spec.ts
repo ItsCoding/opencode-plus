@@ -20,13 +20,13 @@ benchmark("samples cached session repaint after the click", async ({ page, repor
   await mockStressTimeline(page)
   await installStressSessionTabs(page)
   await installTimelineSettings(page)
+  await page.addInitScript(() => {
+    localStorage.setItem("opencode.global.dat:layout", JSON.stringify({ sidebar: { opened: true } }))
+  })
   await page.goto(stressSessionHref(fixture.targetID))
   await expectSessionTitle(page, fixture.expected.targetTitle)
   await waitForStableTimeline(page, fixture.expected.targetMessageIDs.at(-1)!)
-  await page
-    .locator(`[data-slot="titlebar-tabs"] a[href="${stressSessionHref(fixture.sourceID)}"]`)
-    .first()
-    .click()
+  await page.locator(`div:not([inert]) > [data-component="unified-sidebar"] [data-session-id="${fixture.sourceID}"] a`).click()
   await expectSessionTitle(page, fixture.expected.sourceTitle)
   await waitForStableTimeline(page, fixture.expected.sourceMessageIDs.at(-1)!)
 
@@ -38,17 +38,14 @@ benchmark("samples cached session repaint after the click", async ({ page, repor
     windowMs: 1_000,
   })
 
-  await page
-    .locator(`[data-slot="titlebar-tabs"] a[href="${stressSessionHref(fixture.targetID)}"]`)
-    .first()
-    .click()
+  await page.locator(`div:not([inert]) > [data-component="unified-sidebar"] [data-session-id="${fixture.targetID}"] a`).click()
   await Promise.all([expectSessionTitle(page, fixture.expected.targetTitle), waitForCachedRepaintWindow(page, 1_000)])
   const result = await collectCachedRepaintTrace(page)
   report(compressCachedRepaintTrace(result))
   expect(result.samples.length).toBeGreaterThan(0)
 })
 
-benchmark("prefetches every open session tab", async ({ page, report }) => {
+benchmark("prefetches a sidebar session after focus", async ({ page, report }) => {
   const prefetched = new Set<string>()
   await mockStressTimeline(page, {
     onMessages: (input) => {
@@ -59,9 +56,15 @@ benchmark("prefetches every open session tab", async ({ page, report }) => {
     sessionIDs: [fixture.sourceID, fixture.targetID, fixture.childID],
   })
   await installTimelineSettings(page)
+  await page.addInitScript(() => {
+    localStorage.setItem("opencode.global.dat:layout", JSON.stringify({ sidebar: { opened: true } }))
+  })
   await page.goto(stressSessionHref(fixture.sourceID))
   await expectSessionTitle(page, fixture.expected.sourceTitle)
 
-  await expect.poll(() => prefetched.has(fixture.childID)).toBe(true)
+  await page
+    .locator(`div:not([inert]) > [data-component="unified-sidebar"] [data-session-id="${fixture.targetID}"] a`)
+    .focus()
+  await expect.poll(() => prefetched.has(fixture.targetID)).toBe(true)
   report({ prefetched: [...prefetched] })
 })

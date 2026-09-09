@@ -40,7 +40,7 @@ export function ContextualInspector(props: {
   return (
     <aside
       data-component="contextual-inspector"
-      class="h-full shrink-0 flex flex-col items-center gap-1 border-s border-border-weaker-base bg-v2-background-bg-base p-1"
+      class="md:h-full shrink-0 flex flex-col items-center gap-1 border-s border-border-weaker-base bg-v2-background-bg-base p-1"
       aria-label={language.t("session.panel.reviewAndFiles")}
     >
       <For each={items}>

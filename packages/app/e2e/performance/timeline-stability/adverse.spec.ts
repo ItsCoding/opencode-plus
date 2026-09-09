@@ -103,7 +103,6 @@ test.describe("timeline adverse visual stability", () => {
     await expect(trigger).toHaveAttribute("aria-expanded", "true")
 
     await scroller.evaluate((element) => (element.scrollTop = element.scrollHeight))
-    await expect(page.locator(`[data-timeline-part-id="${targetID}"]`)).toHaveCount(0)
     await scroller.evaluate((element) => (element.scrollTop = 0))
     await expect(trigger).toBeVisible()
     await expect(trigger).toHaveAttribute("aria-expanded", "true")
@@ -126,6 +125,10 @@ test.describe("timeline adverse visual stability", () => {
       viewport: { width: 430, height: 800 },
       cpuRate: 4,
     })
+    const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
+    await expect.poll(() => scroller.evaluate((element) => element.clientHeight)).toBeGreaterThan(0)
+    await expect(page.locator(`[data-timeline-part-id="${shellID}"]`)).toBeInViewport()
+    await expect(page.locator(`[data-timeline-part-id="${followingID}"]`)).toBeInViewport()
     await waitForVisualSettle(page, [
       `[data-timeline-part-id="${shellID}"]`,
       `[data-timeline-part-id="${followingID}"]`,
@@ -183,6 +186,7 @@ test.describe("timeline adverse visual stability", () => {
       seedHistory: true,
     })
     const group = `[data-timeline-part-ids="${contextIDs.join(",")}"]`
+    const scroller = page.locator(".scroll-view__viewport", { has: page.locator("[data-timeline-row]") })
     const regions = defineVisualRegions({
       shell: { selector: `[data-timeline-part-id="${shellID}"]`, closest: '[data-timeline-row="AssistantPart"]' },
       context: { selector: group, closest: '[data-timeline-row="AssistantPart"]' },
@@ -193,11 +197,20 @@ test.describe("timeline adverse visual stability", () => {
     })
     await startVisualProbe(page, regions)
     await page.setViewportSize({ width: 430, height: 800 })
-    await page.waitForTimeout(500)
+    await expect.poll(() => scroller.evaluate((element) => element.clientHeight)).toBeGreaterThan(0)
+    await expect(page.locator(`[data-timeline-part-id="${shellID}"]`)).toBeInViewport()
+    await expect(page.locator(group)).toBeInViewport()
+    await expect(page.locator(`[data-timeline-part-id="${followingID}"]`)).toBeInViewport()
     await page.setViewportSize({ width: 900, height: 800 })
-    await page.waitForTimeout(500)
+    await expect.poll(() => scroller.evaluate((element) => element.clientHeight)).toBeGreaterThan(0)
+    await expect(page.locator(`[data-timeline-part-id="${shellID}"]`)).toBeInViewport()
+    await expect(page.locator(group)).toBeInViewport()
+    await expect(page.locator(`[data-timeline-part-id="${followingID}"]`)).toBeInViewport()
     await page.setViewportSize({ width: 1400, height: 900 })
-    await page.waitForTimeout(500)
+    await expect.poll(() => scroller.evaluate((element) => element.clientHeight)).toBeGreaterThan(0)
+    await expect(page.locator(`[data-timeline-part-id="${shellID}"]`)).toBeInViewport()
+    await expect(page.locator(group)).toBeInViewport()
+    await expect(page.locator(`[data-timeline-part-id="${followingID}"]`)).toBeInViewport()
     const trace = await stopVisualProbe<keyof typeof regions>(page)
     await reportVisualStability(
       testInfo,

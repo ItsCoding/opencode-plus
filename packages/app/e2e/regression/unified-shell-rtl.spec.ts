@@ -11,23 +11,50 @@ const sessionHref = `/server/${base64Encode(server)}/session/${sessionID}`
 const targetSessionHref = `/server/${base64Encode(server)}/session/${targetSessionID}`
 
 test.describe("unified shell responsive and direction behavior", () => {
+  test("renders the review file path with LTR direction in RTL", async ({ page }) => {
+    await setup(page)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(sessionHref)
+    await page.evaluate(() => (document.documentElement.dir = "rtl"))
+
+    const inspector = page.locator('[data-component="contextual-inspector"]')
+    await inspector.getByRole("button", { name: "Review" }).click()
+    await expect(page.locator("#review-panel")).toBeVisible()
+
+    const row = page.locator(
+      '[data-component="file-tree-v2"] [data-slot="file-tree-v2-row"][data-path="src/main.ts"]',
+    )
+    const path = row.locator("span.flex-1.min-w-0")
+    await expect(row).toBeVisible()
+    await expect(path).toBeVisible()
+    await expect(path).toHaveAttribute("dir", "ltr")
+  })
+
   test("uses the configured desktop density and removes the sidebar from focus navigation", async ({ page }) => {
     await setup(page)
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(sessionHref)
 
     const sidebar = page.locator('[data-component="unified-sidebar"]:visible')
+    const newSession = page.getByRole("button", { name: "New session" })
     await expect(sidebar).toBeVisible()
+    await expect(newSession).toBeVisible()
     await expect.poll(async () => Math.round((await sidebar.boundingBox())?.width ?? 0)).toBe(300)
 
     const toggle = page.getByRole("button", { name: "Toggle sidebar" })
     await toggle.click()
     await expect(page.locator('[data-component="unified-sidebar"]:visible')).toHaveCount(0)
-    await expect(page.locator('[data-component="unified-sidebar"] a:visible')).toHaveCount(0)
+    await expect(newSession).toHaveCount(0)
+    await toggle.focus()
+    await page.keyboard.press("Tab")
+    expect(await page.locator(":focus").getAttribute("data-action")).not.toBe("sidebar-new-session")
 
     await toggle.click()
     await expect(sidebar).toBeVisible()
     await expect.poll(async () => Math.round((await sidebar.boundingBox())?.width ?? 0)).toBe(300)
+    await toggle.press("Tab")
+    await page.keyboard.press("Tab")
+    await expect(sidebar.locator("button:focus, a:focus")).toHaveCount(1)
   })
 
   test("uses compact desktop geometry", async ({ page }) => {
@@ -52,10 +79,13 @@ test.describe("unified shell responsive and direction behavior", () => {
     const drawer = page.locator('[data-component="unified-sidebar"]:visible')
     const shell = drawer.locator("..").filter({ has: drawer })
     await expect(drawer).toBeVisible()
-    await expect.poll(async () => (await shell.boundingBox())?.x ?? -1).toBe(0)
-    const drawerBox = await shell.boundingBox()
-    if (!drawerBox) throw new Error("mobile drawer geometry is unavailable")
-    expect(drawerBox.x).toBe(0)
+    await expect
+      .poll(async () => {
+        const drawerBox = await drawer.boundingBox()
+        if (!drawerBox) return -1
+        return direction === "ltr" ? drawerBox.x : drawerBox.x + drawerBox.width
+      })
+      .toBe(direction === "ltr" ? 0 : 390)
 
     await drawer.locator(`[data-session-id="${targetSessionID}"]`).click()
     await expect(page).toHaveURL(targetSessionHref)
@@ -68,42 +98,83 @@ test.describe("unified shell responsive and direction behavior", () => {
     })
   }
 
-  for (const mode of ["locale", "forced"] as const) {
-    test(`keeps inline-end inspector and bidi content in ${mode} RTL`, async ({ page }) => {
-      await setup(page, { locale: mode === "locale" ? "ar" : undefined })
+  test("keeps the terminal direction LTR in RTL", async ({ page }) => {
+    await setup(page, { protocol: "v2" })
+    await page.route("**/api/pty*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          location: { directory, project: { id: projectID, directory } },
+          data: { id: "pty-unified-shell", title: "Terminal 1", command: "cmd.exe", args: [], cwd: directory, status: "running", pid: 1 },
+        }),
+      }),
+    )
+    await page.route("**/api/pty/pty-unified-shell/connect-token*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify({
+          location: { directory, project: { id: projectID, directory } },
+          data: { ticket: "e2e-ticket", expires_in: 60 },
+        }),
+      }),
+    )
+    await page.routeWebSocket(/\/api\/pty\/pty-unified-shell\/connect/, () => undefined)
+    await page.goto(sessionHref)
+    await page.evaluate(() => (document.documentElement.dir = "rtl"))
+    await page.keyboard.press("Control+Backquote")
+
+    const terminal = page.locator('[data-component="terminal"]')
+    await expect(terminal).toBeVisible()
+    await expect(terminal).toHaveAttribute("dir", "ltr")
+  })
+
+  for (const direction of ["ltr", "rtl"] as const) {
+    test(`keeps the pinned review inspector at inline end in ${direction.toUpperCase()}`, async ({ page }) => {
+      await setup(page, { locale: direction === "rtl" ? "ar" : undefined })
       await page.setViewportSize({ width: 1440, height: 900 })
       await page.goto(sessionHref)
-      await page.evaluate(() => (document.documentElement.dir = "rtl"))
+      await page.evaluate((value) => (document.documentElement.dir = value), direction)
 
-      await expect(page.locator("html")).toHaveAttribute("dir", "rtl")
       const sidebar = page.locator('[data-component="unified-sidebar"]:visible')
       await expect(sidebar.locator('bdi[dir="auto"]')).toHaveCount(3)
       await expect(sidebar.locator(`[data-session-id="${sessionID}"] bdi[dir="auto"]`)).toContainText("جلسة")
 
       const inspector = page.locator('[data-component="contextual-inspector"]')
-      const sessionPanel = page.locator("main")
+      const reviewLink = inspector.getByRole("link", { name: "Review" })
+      const filesLink = inspector.getByRole("link", { name: "All files" })
+      const reviewButton = inspector.getByRole("button").nth(0)
+      const filesButton = inspector.getByRole("button").nth(1)
+      const reviewPanel = page.locator("#review-panel")
+      await reviewButton.click()
+      await expect(reviewButton).toHaveAttribute("aria-pressed", "true")
+      await expect(reviewPanel).toBeVisible()
       const inspectorBox = await inspector.boundingBox()
-      const panelBox = await sessionPanel.boundingBox()
+      const panelBox = await reviewPanel.boundingBox()
       if (!inspectorBox || !panelBox) throw new Error("RTL shell geometry is unavailable")
-      expect(inspectorBox.x + inspectorBox.width).toBeLessThanOrEqual(panelBox.x)
-      const inspectorButtons = inspector.getByRole("button")
-      expect(
-        await inspectorButtons.nth(0).evaluate((button, next) =>
-          !!(button.compareDocumentPosition(next as Node) & Node.DOCUMENT_POSITION_FOLLOWING),
-          await inspectorButtons.nth(1).elementHandle(),
-        ),
-      ).toBe(true)
-      await inspectorButtons.nth(1).focus()
-      await expect(inspectorButtons.nth(1)).toBeFocused()
+      if (direction === "ltr") expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(inspectorBox.x)
+      if (direction === "rtl") expect(inspectorBox.x + inspectorBox.width).toBeLessThanOrEqual(panelBox.x)
+       expect(
+         await reviewButton.evaluate((button, next) =>
+           !!(button.compareDocumentPosition(next as Node) & Node.DOCUMENT_POSITION_FOLLOWING),
+           await filesButton.elementHandle(),
+         ),
+        ).toBe(true)
+        await reviewLink.press("Tab")
+        await page.keyboard.press("Tab")
+        await expect(filesLink).toBeFocused()
     })
   }
 })
 
 async function setup(
   page: Parameters<typeof mockOpenCodeServer>[0],
-  options: { sidebarDensity?: "comfortable" | "compact"; locale?: string } = {},
+  options: { sidebarDensity?: "comfortable" | "compact"; locale?: string; protocol?: "v2" } = {},
 ) {
   await mockOpenCodeServer(page, {
+    protocol: options.protocol,
     directory,
     project: { id: projectID, worktree: directory, name: "مشروع OpenCode", vcs: "git", sandboxes: [] },
     sessions: [
@@ -126,7 +197,19 @@ async function setup(
         time: { created: 2, updated: 2 },
       },
     ],
-    provider: { all: [], connected: [], default: {} },
+    provider: options.protocol
+      ? {
+          all: [
+            {
+              id: "opencode",
+              name: "OpenCode",
+              models: { test: { id: "test", name: "Test", limit: { context: 200_000 } } },
+            },
+          ],
+          connected: ["opencode"],
+          default: { providerID: "opencode", modelID: "test" },
+        }
+      : { all: [], connected: [], default: {} },
     vcsDiff: [{ file: "src/main.ts", status: "modified", additions: 1, deletions: 0 }],
     fileList: () => [],
     pageMessages: () => ({ items: [] }),
@@ -141,7 +224,7 @@ async function setup(
       localStorage.setItem(
         "opencode.window.browser.dat:tabs",
         JSON.stringify([
-          { type: "session", server, sessionId },
+          { type: "session", server, sessionId: sessionID },
           { type: "session", server, sessionId: targetSessionID },
         ]),
       )

@@ -36,12 +36,13 @@ export async function measureNavigationMilestones(
   page: Page,
   input: {
     triggerSelector: string
+    trigger?: { event: "keydown"; key: string; controlKey?: boolean }
     milestones: Record<string, { selector: string; visible?: boolean }>
     navigate: () => Promise<void>
   },
 ) {
   await page.evaluate(
-    ({ triggerSelector, milestones }) => {
+    ({ triggerSelector, trigger, milestones }) => {
       const samples: NavigationMilestoneSample[] = []
       const streaks = new Map<string, number>()
       const marked = new Set<string>()
@@ -93,16 +94,22 @@ export async function measureNavigationMilestones(
           }, 0)
         })
       }
-      document.addEventListener(
-        "click",
-        (event) => {
+      const eventName = trigger?.event ?? "click"
+      const onTrigger = (event: Event) => {
           if (!(event.target instanceof Element) || !event.target.closest(triggerSelector)) return
+          if (
+            trigger &&
+            (!(event instanceof KeyboardEvent) ||
+              event.key !== trigger.key ||
+              (trigger.controlKey !== undefined && trigger.controlKey !== event.ctrlKey))
+          )
+            return
+          document.removeEventListener(eventName, onTrigger, true)
           started = performance.now()
           performance.mark("opencode.navigation.click")
           sample()
-        },
-        { capture: true, once: true },
-      )
+      }
+      document.addEventListener(eventName, onTrigger, { capture: true })
       ;(window as Window & { __navigationMilestones?: NavigationMilestoneProbe }).__navigationMilestones = {
         samples,
         stop: () => {
@@ -110,7 +117,7 @@ export async function measureNavigationMilestones(
         },
       }
     },
-    { triggerSelector: input.triggerSelector, milestones: input.milestones },
+    { triggerSelector: input.triggerSelector, trigger: input.trigger, milestones: input.milestones },
   )
   await input.navigate()
   await page.waitForFunction(() => {
