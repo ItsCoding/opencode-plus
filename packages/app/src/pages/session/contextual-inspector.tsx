@@ -4,7 +4,6 @@ import { createEffect, For, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Icon } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
-import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { updateInspector, type InspectorTool } from "./contextual-inspector-state"
 
@@ -52,34 +51,33 @@ export function ContextualInspector(props: {
             ignoreSafeArea
             placement={placement()}
           >
-            <Kobalte.Trigger as="div">
-              <TooltipV2 value={item.label()} placement={placement()}>
-                <IconButtonV2
-                  type="button"
-                  icon={<Icon name={item.icon} />}
-                  variant="ghost-muted"
-                  size="large"
-                  aria-label={item.label()}
-                  aria-pressed={state.pinned === item.tool}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return
-                    event.preventDefault()
-                    keyboardTool = item.tool
-                    activate(item.tool)
-                  }}
-                  onPointerEnter={() => setState(updateInspector(state, { type: "enter", tool: item.tool, hoverable: hoverable() }))}
-                  onPointerLeave={() => setState(updateInspector(state, { type: "leave", tool: item.tool }))}
-                  onClick={(event) => {
-                    if (keyboardTool === item.tool) {
-                      keyboardTool = undefined
-                      return
-                    }
-                    if (event.detail === 0) return
-                    activate(item.tool)
-                  }}
-                />
-              </TooltipV2>
-            </Kobalte.Trigger>
+            <div class="relative">
+              <IconButtonV2
+                type="button"
+                icon={<Icon name={item.icon} />}
+                variant="ghost-muted"
+                size="large"
+                aria-label={item.label()}
+                aria-pressed={state.pinned === item.tool}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return
+                  event.preventDefault()
+                  keyboardTool = item.tool
+                  activate(item.tool)
+                }}
+                onPointerEnter={() => setState(updateInspector(state, { type: "enter", tool: item.tool, hoverable: hoverable() }))}
+                onPointerLeave={() => setState(updateInspector(state, { type: "leave", tool: item.tool }))}
+                onClick={(event) => {
+                  if (keyboardTool === item.tool) {
+                    keyboardTool = undefined
+                    return
+                  }
+                  if (event.detail === 0) return
+                  activate(item.tool)
+                }}
+              />
+              <Kobalte.Trigger as="div" tabIndex={-1} aria-hidden="true" class="pointer-events-none absolute inset-0" />
+            </div>
             <Kobalte.Portal>
               <Kobalte.Content
                 data-component="contextual-inspector-preview"

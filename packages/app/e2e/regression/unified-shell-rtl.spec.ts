@@ -143,10 +143,8 @@ test.describe("unified shell responsive and direction behavior", () => {
       await expect(sidebar.locator(`[data-session-id="${sessionID}"] bdi[dir="auto"]`)).toContainText("جلسة")
 
       const inspector = page.locator('[data-component="contextual-inspector"]')
-      const reviewLink = inspector.getByRole("link", { name: "Review" })
-      const filesLink = inspector.getByRole("link", { name: "All files" })
-      const reviewButton = inspector.getByRole("button").nth(0)
-      const filesButton = inspector.getByRole("button").nth(1)
+      const reviewButton = inspector.getByRole("button", { name: "Review" })
+      const filesButton = inspector.getByRole("button", { name: "All files" })
       const reviewPanel = page.locator("#review-panel")
       await reviewButton.click()
       await expect(reviewButton).toHaveAttribute("aria-pressed", "true")
@@ -156,15 +154,10 @@ test.describe("unified shell responsive and direction behavior", () => {
       if (!inspectorBox || !panelBox) throw new Error("RTL shell geometry is unavailable")
       if (direction === "ltr") expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(inspectorBox.x)
       if (direction === "rtl") expect(inspectorBox.x + inspectorBox.width).toBeLessThanOrEqual(panelBox.x)
-       expect(
-         await reviewButton.evaluate((button, next) =>
-           !!(button.compareDocumentPosition(next as Node) & Node.DOCUMENT_POSITION_FOLLOWING),
-           await filesButton.elementHandle(),
-         ),
-        ).toBe(true)
-        await reviewLink.press("Tab")
-        await page.keyboard.press("Tab")
-        await expect(filesLink).toBeFocused()
+      await reviewButton.focus()
+      await expect(reviewButton).toBeFocused()
+      await reviewButton.press("Tab")
+      await expect(filesButton).toBeFocused()
     })
   }
 })
