@@ -133,7 +133,7 @@ test.describe("unified shell responsive and direction behavior", () => {
 
   for (const direction of ["ltr", "rtl"] as const) {
     test(`keeps the pinned review inspector at inline end in ${direction.toUpperCase()}`, async ({ page }) => {
-      await setup(page, { locale: direction === "rtl" ? "ar" : undefined })
+      await setup(page)
       await page.setViewportSize({ width: 1440, height: 900 })
       await page.goto(sessionHref)
       await page.evaluate((value) => (document.documentElement.dir = value), direction)
