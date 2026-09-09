@@ -53,7 +53,7 @@ test.describe("touch", () => {
   })
 })
 
-test("places the RTL preview and tooltip at the rail inline-start", async ({ page }) => {
+test("places the RTL preview at the rail inline-start with its count", async ({ page }) => {
   await setup(page, "ar")
   await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
 
@@ -61,8 +61,9 @@ test("places the RTL preview and tooltip at the rail inline-start", async ({ pag
   await expect(reviewButton).toBeVisible()
   await reviewButton.hover()
   const preview = page.locator('[data-component="contextual-inspector-preview"]')
+  await expect(preview).toBeVisible()
   await expect(preview).toHaveAttribute("data-placement", "right")
-  await expect(page.locator('[data-component="tooltip-v2"]')).toHaveAttribute("data-placement", "right")
+  await expect(preview).toContainText("1")
 })
 
 async function setup(page: Parameters<typeof mockOpenCodeServer>[0], locale?: string) {
