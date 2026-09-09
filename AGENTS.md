@@ -3,6 +3,7 @@
 - Keep runtime dependencies directed from Schema to Core and Protocol, then from Core and Protocol to Server. Client runtime code may depend on Schema and Protocol but never Core or Server; `sdk-next` composes Client, Core, and Server.
 - The default branch in this repo is `dev`.
 - Local `main` ref may not exist; use `dev` or `origin/dev` for diffs.
+- When using subagents, try to use the most cost efficient model for the task. For example, use `gpt-5.6-luna` for simple tasks and `gpt-5.6-terra` for more complex tasks.
 
 ## Branch Names
 

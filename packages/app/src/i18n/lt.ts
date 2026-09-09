@@ -1,7 +1,7 @@
 import { DESKTOP_NATIVE_KEYS } from "./desktop-native"
 
 const desktop = [
-  "OpenCode",
+  "OpenCode+",
   "Failas",
   "Taisa",
   "Rodymas",
@@ -45,7 +45,7 @@ const desktop = [
   "Pagalbos forumas",
   "Pateikti atsiliepimą",
   "Pranešti apie klaidą",
-  "OpenCode meniu",
+  "OpenCode+ meniu",
   "Naujinių patikrinti nepavyko.",
   "Naujinimo klaida",
   "Naudojate naujausią versiją.",
@@ -922,7 +922,7 @@ export const dict = {
   "debugBar.direction.tip": "Priverskite visą programos išdėstymo kryptį nekeisdami pasirinktos kalbos",
   "debugBar.direction.ltr": "LTR",
   "debugBar.direction.rtl": "RTL",
-  "app.name.desktop": "OpenCode darbalaukis",
+  "app.name.desktop": "OpenCode+ darbalaukis",
   "settings.section.desktop": "Darbalaukis",
   "settings.section.server": "Serveris",
   "settings.tab.general": "Bendra",

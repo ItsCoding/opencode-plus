@@ -43,7 +43,7 @@ export const dict = {
   "desktop.menu.supportForum": "サポートフォーラム",
   "desktop.menu.shareFeedback": "フィードバックを送信",
   "desktop.menu.reportBug": "バグを報告",
-  "desktop.menu.ariaLabel": "OpenCodeメニュー",
+  "desktop.menu.ariaLabel": "OpenCode+メニュー",
 
   "desktop.updater.dialog.checkFailed.message": "アップデートを確認できませんでした。",
   "desktop.updater.dialog.checkFailed.title": "アップデートエラー",
@@ -815,7 +815,7 @@ export const dict = {
   "sidebar.project.clearNotifications": "通知をクリア",
   "sidebar.empty.title": "開いているプロジェクトはありません",
   "sidebar.empty.description": "プロジェクトを開いて始めましょう",
-  "app.name.desktop": "OpenCode Desktop",
+  "app.name.desktop": "OpenCode+ Desktop",
   "settings.section.desktop": "デスクトップ",
   "settings.section.server": "サーバー",
   "settings.tab.general": "一般",

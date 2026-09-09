@@ -169,6 +169,22 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
           />
         </SettingsRowV2>
 
+        <SettingsRowV2
+          title={language.t("sidebar.nav.projectsAndSessions")}
+          description={language.t("settings.general.row.appearance.description")}
+        >
+          <SelectV2
+            appearance="inline"
+            data-action="settings-sidebar-density"
+            options={[...props.controller.density.options]}
+            current={props.controller.density.current()}
+            placement="bottom-end"
+            gutter={6}
+            label={(option) => (option === "comfortable" ? "300 px" : "252 px")}
+            onSelect={(option) => option && props.controller.density.select(option)}
+          />
+        </SettingsRowV2>
+
         <FontSetting kind="ui" fonts={props.controller.fonts} />
         <FontSetting kind="code" fonts={props.controller.fonts} />
         <FontSetting kind="terminal" fonts={props.controller.fonts} />

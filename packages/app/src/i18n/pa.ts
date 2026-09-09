@@ -43,7 +43,7 @@ export const dict = {
   "desktop.menu.supportForum": "مدد دا فورم",
   "desktop.menu.shareFeedback": "اپنی رائے سانجھی کرو",
   "desktop.menu.reportBug": "خرابی دی رپورٹ کرو",
-  "desktop.menu.ariaLabel": "OpenCode مینو",
+  "desktop.menu.ariaLabel": "OpenCode+ مینو",
 
   "desktop.updater.dialog.checkFailed.message": "اپ ڈیٹ دی پڑتال ناکام ہو گئی۔",
   "desktop.updater.dialog.checkFailed.title": "اپ ڈیٹ دی غلطی",
@@ -914,7 +914,7 @@ export const dict = {
   "debugBar.direction.tip": "چُنی ہوئی زبان نوں بدلے بغیر پوری ایپ دے لے آؤٹ دی سمت لازمی مقرر کرو",
   "debugBar.direction.ltr": "LTR",
   "debugBar.direction.rtl": "RTL",
-  "app.name.desktop": "OpenCode ڈیسک ٹاپ",
+  "app.name.desktop": "OpenCode+ ڈیسک ٹاپ",
   "settings.section.desktop": "ڈیسک ٹاپ",
   "settings.section.server": "سرور",
   "settings.tab.general": "عمومی",

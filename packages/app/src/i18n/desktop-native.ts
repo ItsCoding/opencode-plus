@@ -200,9 +200,10 @@ export function detectDesktopNativeLocale(languages: readonly string[]): Desktop
     const source = locale(language)
     if (!source) continue
     if (["no", "nb", "nn"].includes(source.language)) return "no"
+    const script = source.language === "pa" && source.script === "Aran" ? "Arab" : source.script
     const match = DESKTOP_NATIVE_LOCALES.find((candidate) => {
       const target = locale(DESKTOP_NATIVE_LOCALE_TAGS[candidate])
-      return target?.language === source.language && target.script === source.script
+      return target?.language === source.language && target.script === script
     })
     if (match) return match
   }
@@ -222,7 +223,7 @@ function locale(value: string) {
 }
 
 export const DESKTOP_NATIVE_ENGLISH = {
-  "desktop.menu.app": "OpenCode",
+  "desktop.menu.app": "OpenCode+",
   "desktop.menu.file": "File",
   "desktop.menu.edit": "Edit",
   "desktop.menu.view": "View",
@@ -266,7 +267,7 @@ export const DESKTOP_NATIVE_ENGLISH = {
   "desktop.menu.supportForum": "Support Forum",
   "desktop.menu.shareFeedback": "Share Feedback",
   "desktop.menu.reportBug": "Report a Bug",
-  "desktop.menu.ariaLabel": "OpenCode menu",
+  "desktop.menu.ariaLabel": "OpenCode+ menu",
 
   "desktop.updater.dialog.checkFailed.message": "Update check failed.",
   "desktop.updater.dialog.checkFailed.title": "Update Error",
@@ -334,7 +335,9 @@ export function createDesktopNativeBundle(
 ): DesktopNativeBundle {
   return {
     locale,
-    messages: Object.fromEntries(DESKTOP_NATIVE_KEYS.map((key) => [key, translate(key)])) as DesktopNativeMessages,
+    messages: Object.fromEntries(
+      DESKTOP_NATIVE_KEYS.map((key) => [key, key === "desktop.menu.app" ? "OpenCode+" : translate(key)]),
+    ) as DesktopNativeMessages,
   }
 }
 

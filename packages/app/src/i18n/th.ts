@@ -43,7 +43,7 @@ export const dict = {
   "desktop.menu.supportForum": "ฟอรัมสนับสนุน",
   "desktop.menu.shareFeedback": "ส่งข้อคิดเห็น",
   "desktop.menu.reportBug": "รายงานข้อบกพร่อง",
-  "desktop.menu.ariaLabel": "เมนู OpenCode",
+  "desktop.menu.ariaLabel": "เมนู OpenCode+",
 
   "desktop.updater.dialog.checkFailed.message": "การตรวจหาการอัปเดตล้มเหลว",
   "desktop.updater.dialog.checkFailed.title": "ข้อผิดพลาดในการอัปเดต",
@@ -879,7 +879,7 @@ export const dict = {
   "sidebar.empty.title": "ไม่มีโปรเจกต์ที่เปิดอยู่",
   "sidebar.empty.description": "เปิดโปรเจกต์เพื่อเริ่มต้น",
 
-  "app.name.desktop": "OpenCode Desktop",
+  "app.name.desktop": "OpenCode+ Desktop",
 
   "settings.section.desktop": "เดสก์ท็อป",
   "settings.section.server": "เซิร์ฟเวอร์",

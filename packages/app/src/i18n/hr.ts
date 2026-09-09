@@ -1,7 +1,7 @@
 import { DESKTOP_NATIVE_KEYS } from "./desktop-native"
 
 const desktop = [
-  "OpenCode",
+  "OpenCode+",
   "Datoteka",
   "Uredi",
   "Prikaz",
@@ -45,7 +45,7 @@ const desktop = [
   "Forum za podršku",
   "Pošalji povratne informacije",
   "Prijavi pogrešku",
-  "Izbornik OpenCode",
+  "Izbornik OpenCode+",
   "Provjera ažuriranja nije uspjela.",
   "Pogreška pri ažuriranju",
   "Imate najnoviju verziju.",
@@ -916,7 +916,7 @@ export const dict = {
   "debugBar.direction.tip": "Nametnite cijeli smjer izgleda aplikacije bez promjene odabranog jezika",
   "debugBar.direction.ltr": "LTR",
   "debugBar.direction.rtl": "RTL",
-  "app.name.desktop": "OpenCode Radna površina",
+  "app.name.desktop": "OpenCode+ Radna površina",
   "settings.section.desktop": "Radna površina",
   "settings.section.server": "Poslužitelj",
   "settings.tab.general": "Općenito",

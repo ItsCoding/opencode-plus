@@ -85,6 +85,12 @@ describe("desktop native translations", () => {
     expect(parseDesktopNativeBundle(bundle)).toEqual(bundle)
   })
 
+  test("uses the fork marker for the native app menu in every locale", () => {
+    for (const locale of DESKTOP_NATIVE_LOCALES) {
+      expect(createDesktopNativeBundle(locale, () => "OpenCode").messages["desktop.menu.app"]).toBe("OpenCode+")
+    }
+  })
+
   test("rejects unsupported locales and mismatched key sets", () => {
     const bundle = createDesktopNativeBundle("en", (key) => DESKTOP_NATIVE_ENGLISH[key])
     expect(parseDesktopNativeBundle({ ...bundle, locale: "en-US" })).toBeUndefined()
@@ -120,7 +126,9 @@ describe("desktop native locale detection", () => {
   test("uses Unicode likely subtags for script-sensitive bundles", () => {
     expect(detectDesktopNativeLocale(["zh-TW"])).toBe("zht")
     expect(detectDesktopNativeLocale(["zh-SG"])).toBe("zh")
+    expect(detectDesktopNativeLocale(["pa-Aran-PK"])).toBe("pa")
     expect(detectDesktopNativeLocale(["pa-PK"])).toBe("pa")
+    expect(detectDesktopNativeLocale(["ar-Aran"])).toBe("en")
     expect(detectDesktopNativeLocale(["pa-IN", "fr"])).toBe("fr")
     expect(detectDesktopNativeLocale(["az-Cyrl", "de"])).toBe("de")
     expect(detectDesktopNativeLocale(["sr-Cyrl"])).toBe("sr")

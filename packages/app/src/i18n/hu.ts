@@ -1,7 +1,7 @@
 import { DESKTOP_NATIVE_KEYS } from "./desktop-native"
 
 const desktop = [
-  "OpenCode",
+  "OpenCode+",
   "Fájl",
   "Szerkesztés",
   "Nézet",
@@ -45,7 +45,7 @@ const desktop = [
   "Támogatási fórum",
   "Visszajelzés küldése",
   "Hiba jelentése",
-  "OpenCode menü",
+  "OpenCode+ menü",
   "A frissítések keresése sikertelen.",
   "Frissítési hiba",
   "A legfrissebb verziót használja.",
@@ -916,7 +916,7 @@ export const dict = {
     "A teljes alkalmazáselrendezési irány kényszerítése a kiválasztott nyelv megváltoztatása nélkül",
   "debugBar.direction.ltr": "LTR",
   "debugBar.direction.rtl": "RTL",
-  "app.name.desktop": "OpenCode asztali számítógép",
+  "app.name.desktop": "OpenCode+ asztali számítógép",
   "settings.section.desktop": "Asztali",
   "settings.section.server": "Kiszolgáló",
   "settings.tab.general": "Általános",

@@ -1,0 +1,142 @@
+<style>
+  .shell-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
+  .shell-choice { border:1px solid var(--border); border-radius:14px; overflow:hidden; cursor:pointer; background:#10100f; }
+  .shell-choice:hover { border-color:var(--accent); }
+  .shell-choice.selected { outline:2px solid var(--accent); outline-offset:2px; }
+  .app { height:570px; display:grid; grid-template-columns:var(--side) 1fr 42px; color:#d8d5ce; background:#121210; font:12px/1.35 ui-sans-serif,system-ui,sans-serif; }
+  .sidebar { border-right:1px solid #2a2926; padding:12px 10px; overflow:hidden; }
+  .brand { display:flex; align-items:center; gap:9px; height:31px; font-weight:650; font-size:13px; }
+  .hamb { width:22px; color:#a5a198; }
+  .new { display:flex; align-items:center; gap:7px; margin:8px 0 12px; padding:7px 8px; border-radius:7px; background:#1c1b18; color:#eeeae1; }
+  .search { display:flex; gap:7px; color:#8e8a82; margin-bottom:10px; padding:0 7px; }
+  .group { margin:10px 0 13px; }
+  .group-title { display:flex; align-items:center; gap:7px; padding:3px 6px; font-weight:700; color:#dedad1; }
+  .project-dot { width:8px; height:8px; border-radius:3px; background:#72bf4b; }
+  .project-dot.orange { background:#d97d3c; }
+  .project-dot.blue { background:#4ba7bd; }
+  .session { display:grid; grid-template-columns:7px 1fr auto; gap:7px; align-items:center; padding:var(--row-pad) 7px var(--row-pad) 20px; border-radius:6px; color:#aaa69e; white-space:nowrap; }
+  .session.active { background:#25231f; color:#f0ece3; }
+  .status { width:5px; height:5px; border-radius:50%; background:#e48643; }
+  .status.idle { background:transparent; }
+  .title { overflow:hidden; text-overflow:ellipsis; }
+  .age { color:#d78345; font-variant-numeric:tabular-nums; }
+  .more { padding:4px 7px 1px 20px; color:#817d75; }
+  .footer { position:absolute; bottom:11px; display:flex; gap:14px; color:#8d8981; padding-left:7px; }
+  .side-wrap { position:relative; height:100%; }
+  .main { display:grid; grid-template-rows:42px 1fr; min-width:0; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #292824; padding:0 13px; color:#bab6ad; }
+  .top-actions { display:flex; gap:10px; color:#88847c; }
+  .new-main { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:30px; }
+  .prompt-wrap { width:min(620px,86%); transform:translateY(-20px); }
+  .question { font-size:25px; font-weight:620; text-align:center; margin-bottom:31px; letter-spacing:-.4px; }
+  .picker { margin:0 0 8px 8px; color:#b8b4ab; }
+  .prompt { border:1px solid #66503c; border-radius:11px; min-height:90px; padding:15px; color:#77736c; background:#181715; }
+  .prompt-bottom { display:flex; justify-content:space-between; margin-top:28px; color:#a39f96; }
+  .rail { border-left:1px solid #292824; display:flex; flex-direction:column; align-items:center; gap:17px; padding-top:54px; color:#858178; }
+  .rail .chosen { color:#dfdbd2; background:#24221e; width:28px; height:28px; border-radius:7px; display:grid; place-items:center; }
+  .labelbar { padding:12px 14px 14px; background:#171614; border-top:1px solid #2d2b27; }
+  .labelbar h3 { margin:0 0 4px; font-size:15px; }
+  .labelbar p { margin:0; color:#8e8a82; }
+  @media (max-width: 1000px) { .shell-grid { grid-template-columns:1fr; } }
+</style>
+
+<h2>Choose the desktop shell density</h2>
+<p class="subtitle">Same behavior in both. Compare scanning comfort, chat width, and how much of each project stays visible.</p>
+
+<div class="shell-grid cards">
+  <div class="shell-choice card" data-choice="comfortable" onclick="toggleSelect(this)">
+    <div class="app" style="--side:300px;--row-pad:5px">
+      <aside class="sidebar side-wrap">
+        <div class="brand"><span class="hamb">|||</span><span>OpenCode+</span></div>
+        <div class="new">[+] <span>New session</span></div>
+        <div class="search">O <span>Search chats and projects</span></div>
+        <div class="group">
+          <div class="group-title">[] chats</div>
+          <div class="session"><i class="status idle"></i><span class="title">Task tool parameter reference</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Subagent orchestration notes</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Review terminal output</span></div>
+        </div>
+        <div class="group">
+          <div class="group-title"><i class="project-dot blue"></i> claude-mem-personal-sync</div>
+          <div class="session"><i class="status"></i><span class="title">Plan first-party memory client</span><span class="age">14m</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Fix memory refresh semantics</span></div>
+          <div class="more">Show all 12</div>
+        </div>
+        <div class="group">
+          <div class="group-title"><i class="project-dot"></i> opencode-plus</div>
+          <div class="session active"><i class="status"></i><span class="title">Web UI roadmap</span><span class="age">8m</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Visible fork branding</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Native task model selection</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">macOS code signing</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Fork updater install</span></div>
+          <div class="more">Show all 24</div>
+        </div>
+        <div class="footer"><span>[gear]</span><span>[keys]</span><span>[i]</span></div>
+      </aside>
+      <main class="main">
+        <div class="topbar"><span>New session</span><span class="top-actions">usage &nbsp; tools &nbsp; Local</span></div>
+        <div class="new-main">
+          <div class="prompt-wrap">
+            <div class="question">What are we working on?</div>
+            <div class="picker">Choose project v</div>
+            <div class="prompt">@ for files and agents, / for commands and skills
+              <div class="prompt-bottom"><span>+ &nbsp; [] &nbsp; auto</span><span>Default &nbsp; GPT-5.6 Terra &nbsp; Build &nbsp; &gt;</span></div>
+            </div>
+          </div>
+        </div>
+      </main>
+      <aside class="rail"><span class="chosen">%</span><span>{}</span><span>&lt;/&gt;</span><span>$_</span><span>[]</span></aside>
+    </div>
+    <div class="labelbar"><h3>A. Comfortable, 300 px</h3><p>Room for readable titles and status. Five sessions per project remain easy to scan.</p></div>
+  </div>
+
+  <div class="shell-choice card" data-choice="compact" onclick="toggleSelect(this)">
+    <div class="app" style="--side:252px;--row-pad:2px">
+      <aside class="sidebar side-wrap">
+        <div class="brand"><span class="hamb">|||</span><span>OpenCode+</span></div>
+        <div class="new">[+] <span>New session</span></div>
+        <div class="search">O <span>Search</span></div>
+        <div class="group">
+          <div class="group-title">[] chats</div>
+          <div class="session"><i class="status idle"></i><span class="title">Task tool parameter reference</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Subagent orchestration notes</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Review terminal output</span></div>
+        </div>
+        <div class="group">
+          <div class="group-title"><i class="project-dot blue"></i> claude-mem-personal-sync</div>
+          <div class="session"><i class="status"></i><span class="title">Plan first-party memory client</span><span class="age">14m</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Fix memory refresh semantics</span></div>
+          <div class="more">+10 more</div>
+        </div>
+        <div class="group">
+          <div class="group-title"><i class="project-dot"></i> opencode-plus</div>
+          <div class="session active"><i class="status"></i><span class="title">Web UI roadmap</span><span class="age">8m</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Visible fork branding</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Native task model selection</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">macOS code signing</span></div>
+          <div class="session"><i class="status idle"></i><span class="title">Fork updater install</span></div>
+          <div class="more">+19 more</div>
+        </div>
+        <div class="group">
+          <div class="group-title"><i class="project-dot orange"></i> desktop</div>
+          <div class="session"><i class="status idle"></i><span class="title">Window state cleanup</span></div>
+        </div>
+        <div class="footer"><span>[gear]</span><span>[keys]</span><span>[i]</span></div>
+      </aside>
+      <main class="main">
+        <div class="topbar"><span>New session</span><span class="top-actions">usage &nbsp; tools &nbsp; Local</span></div>
+        <div class="new-main">
+          <div class="prompt-wrap">
+            <div class="question">What are we working on?</div>
+            <div class="picker">Choose project v</div>
+            <div class="prompt">@ for files and agents, / for commands and skills
+              <div class="prompt-bottom"><span>+ &nbsp; [] &nbsp; auto</span><span>GPT-5.6 Terra &nbsp; Build &nbsp; &gt;</span></div>
+            </div>
+          </div>
+        </div>
+      </main>
+      <aside class="rail"><span class="chosen">%</span><span>{}</span><span>&lt;/&gt;</span><span>$_</span><span>[]</span></aside>
+    </div>
+    <div class="labelbar"><h3>B. Compact, 252 px</h3><p>More chat width and more projects on screen, with faster title truncation.</p></div>
+  </div>
+</div>

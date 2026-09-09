@@ -1,0 +1,85 @@
+<style>
+  .compare { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .choice { border:1px solid var(--border); border-radius:14px; overflow:hidden; cursor:pointer; background:#11110f; }
+  .choice:hover { border-color:var(--accent); }
+  .choice.selected { outline:2px solid var(--accent); outline-offset:2px; }
+  .app { height:585px; display:grid; grid-template-columns:235px 1fr 38px; background:#121210; color:#d4d0c7; font:11px/1.4 ui-sans-serif,system-ui,sans-serif; }
+  .side { border-right:1px solid #292824; padding:12px 9px; }
+  .head { height:30px; font-weight:700; font-size:13px; }
+  .new { padding:7px; margin:5px 0 10px; background:#1d1c19; border-radius:7px; }
+  .group { margin:11px 0; }
+  .gt { padding:3px 6px; font-weight:700; color:#dcd8cf; }
+  .row { padding:4px 7px 4px 19px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#99958d; border-radius:6px; }
+  .row.active { color:#eeeae1; background:#28251f; }
+  .main { position:relative; display:grid; grid-template-rows:40px 1fr 122px; min-width:0; }
+  .bar { border-bottom:1px solid #292824; padding:12px 14px; font-weight:600; }
+  .chat { padding:24px 7%; overflow:hidden; }
+  .turn { max-width:610px; margin:0 auto 20px; }
+  .user { background:#1d1c19; border:1px solid #2e2c28; border-radius:10px; padding:10px 12px; margin-bottom:15px; }
+  .assistant { color:#bbb7ae; line-height:1.55; }
+  .tool { display:grid; grid-template-columns:20px 1fr auto; gap:8px; align-items:center; border-top:1px solid #2a2925; padding:7px 4px; color:#aaa69e; }
+  .tool strong { color:#ddd9d0; }
+  .ok { color:#68a95a; }
+  .run { color:#db8446; }
+  .composer { margin:0 6% 20px; border:1px solid #5c4937; border-radius:10px; padding:12px; color:#77736c; }
+  .compose-bottom { display:flex; justify-content:space-between; margin-top:30px; color:#a5a198; }
+  .auto { padding:2px 6px; border-radius:5px; background:#46311f; color:#e7a36e; }
+  .rail { border-left:1px solid #292824; display:flex; flex-direction:column; align-items:center; gap:17px; padding-top:47px; color:#817d75; }
+  .rail span { width:25px; height:25px; display:grid; place-items:center; border-radius:6px; }
+  .rail .on { background:#292620; color:#e7e2d8; }
+  .floating { position:absolute; right:13px; top:56px; width:245px; border:1px solid #302e29; border-radius:12px; padding:13px; background:#181714; box-shadow:0 14px 40px #0008; }
+  .panel-title { display:flex; justify-content:space-between; font-weight:700; padding-bottom:10px; border-bottom:1px solid #302e29; }
+  .metric { display:flex; justify-content:space-between; padding:8px 0; color:#aaa69e; }
+  .metric b { color:#e1ddd4; }
+  .quota { height:5px; border-radius:4px; background:#302e29; overflow:hidden; }
+  .quota i { display:block; width:18%; height:100%; background:#77a85d; }
+  .section { border-top:1px solid #302e29; padding-top:9px; margin-top:9px; }
+  .docked-app { grid-template-columns:235px minmax(280px,1fr) 255px 38px; }
+  .dock { border-left:1px solid #292824; padding:13px; background:#161513; }
+  .dock .panel-title { margin-bottom:5px; }
+  .label { border-top:1px solid #2c2a26; padding:12px 14px 14px; }
+  .label h3 { margin:0 0 4px; font-size:15px; }
+  .label p { margin:0; color:#8e8a82; }
+  @media(max-width:1000px){.compare{grid-template-columns:1fr}}
+</style>
+
+<h2>How should the contextual inspector open on desktop?</h2>
+<p class="subtitle">The rail is always narrow. This choice controls the lightweight status view; terminals and large files still use the resizable main side panel.</p>
+
+<div class="compare cards">
+  <div class="choice card" data-choice="floating" onclick="toggleSelect(this)">
+    <div class="app">
+      <aside class="side">
+        <div class="head">||| &nbsp; OpenCode+</div><div class="new">[+] New session</div>
+        <div class="group"><div class="gt">[] chats</div><div class="row">Task tool reference</div><div class="row">Review terminal output</div></div>
+        <div class="group"><div class="gt">* opencode-plus</div><div class="row active">Web UI roadmap</div><div class="row">Visible fork branding</div><div class="row">Native task models</div><div class="row">macOS code signing</div><div class="row">Fork updater install</div></div>
+      </aside>
+      <main class="main">
+        <div class="bar">Web UI roadmap</div>
+        <div class="chat"><div class="turn"><div class="user">Analyze a low-conflict Web UI roadmap.</div><div class="assistant">The existing app already provides most of the required state and presentation primitives.</div><div class="tool"><span>&gt;_</span><span><strong>Shell</strong> &nbsp; inspect upstream churn</span><span class="ok">Done 1.2s</span></div><div class="tool"><span>[]</span><span><strong>Read</strong> &nbsp; packages/app/src/pages/layout.tsx</span><span class="ok">Done</span></div><div class="tool"><span>{}</span><span><strong>mcp.context7</strong> &nbsp; Codex usage contract</span><span class="run">Running</span></div></div></div>
+        <div class="composer">Continue the conversation...<div class="compose-bottom"><span>+ &nbsp; [] &nbsp; <b class="auto">Auto</b></span><span>GPT-5.6 Terra &nbsp; Build &nbsp; &gt;</span></div></div>
+        <aside class="floating"><div class="panel-title"><span>Session</span><span>x</span></div><div class="metric"><b>Context</b><span>42%</span></div><div class="metric"><b>Codex weekly</b><span>18% used</span></div><div class="quota"><i></i></div><div class="section"><div class="metric"><b>MCP</b><span>4 / 4</span></div><div class="metric"><b>PTY sessions</b><span>2 running</span></div><div class="metric"><b>Tools</b><span>3 active</span></div></div></aside>
+      </main>
+      <aside class="rail"><span class="on">%</span><span>{}</span><span>&lt;/&gt;</span><span>$_</span><span>[]</span></aside>
+    </div>
+    <div class="label"><h3>A. Floating summary card</h3><p>Keeps chat width unchanged and feels lightweight. Best for quick usage and status checks.</p></div>
+  </div>
+
+  <div class="choice card" data-choice="docked" onclick="toggleSelect(this)">
+    <div class="app docked-app">
+      <aside class="side">
+        <div class="head">||| &nbsp; OpenCode+</div><div class="new">[+] New session</div>
+        <div class="group"><div class="gt">[] chats</div><div class="row">Task tool reference</div><div class="row">Review terminal output</div></div>
+        <div class="group"><div class="gt">* opencode-plus</div><div class="row active">Web UI roadmap</div><div class="row">Visible fork branding</div><div class="row">Native task models</div><div class="row">macOS code signing</div><div class="row">Fork updater install</div></div>
+      </aside>
+      <main class="main">
+        <div class="bar">Web UI roadmap</div>
+        <div class="chat"><div class="turn"><div class="user">Analyze a low-conflict Web UI roadmap.</div><div class="assistant">The existing app already provides most of the required state and presentation primitives.</div><div class="tool"><span>&gt;_</span><span><strong>Shell</strong> &nbsp; inspect upstream churn</span><span class="ok">Done</span></div><div class="tool"><span>[]</span><span><strong>Read</strong> &nbsp; packages/app/src/pages/layout.tsx</span><span class="ok">Done</span></div><div class="tool"><span>{}</span><span><strong>mcp.context7</strong> &nbsp; Codex usage</span><span class="run">Running</span></div></div></div>
+        <div class="composer">Continue the conversation...<div class="compose-bottom"><span>+ &nbsp; [] &nbsp; <b class="auto">Auto</b></span><span>Terra &nbsp; Build &nbsp; &gt;</span></div></div>
+      </main>
+      <aside class="dock"><div class="panel-title"><span>Session</span><span>x</span></div><div class="metric"><b>Context</b><span>42%</span></div><div class="metric"><b>Codex weekly</b><span>18%</span></div><div class="quota"><i></i></div><div class="section"><div class="metric"><b>MCP</b><span>4 / 4</span></div><div class="metric"><b>PTY sessions</b><span>2</span></div><div class="metric"><b>Tools</b><span>3</span></div></div></aside>
+      <aside class="rail"><span class="on">%</span><span>{}</span><span>&lt;/&gt;</span><span>$_</span><span>[]</span></aside>
+    </div>
+    <div class="label"><h3>B. Full-height docked summary</h3><p>More stable and information-dense, but reduces chat width whenever it is open.</p></div>
+  </div>
+</div>

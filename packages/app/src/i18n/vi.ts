@@ -43,7 +43,7 @@ export const dict = {
   "desktop.menu.supportForum": "Diễn đàn hỗ trợ",
   "desktop.menu.shareFeedback": "Chia sẻ phản hồi",
   "desktop.menu.reportBug": "Báo cáo lỗi",
-  "desktop.menu.ariaLabel": "Menu OpenCode",
+  "desktop.menu.ariaLabel": "Menu OpenCode+",
 
   "desktop.updater.dialog.checkFailed.message": "Không kiểm tra được bản cập nhật.",
   "desktop.updater.dialog.checkFailed.title": "Lỗi cập nhật",
@@ -919,7 +919,7 @@ export const dict = {
   "debugBar.direction.tip": "Buộc đặt hướng bố cục cho toàn bộ ứng dụng mà không thay đổi ngôn ngữ đã chọn",
   "debugBar.direction.ltr": "LTR",
   "debugBar.direction.rtl": "RTL",
-  "app.name.desktop": "OpenCode Desktop",
+  "app.name.desktop": "OpenCode+ Desktop",
   "settings.section.desktop": "Desktop",
   "settings.section.server": "Máy chủ",
   "settings.tab.general": "Tổng quan",

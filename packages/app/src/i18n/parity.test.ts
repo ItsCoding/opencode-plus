@@ -97,6 +97,14 @@ const domains = [
 ] as const
 
 describe("i18n parity", () => {
+  test("marks desktop identity labels as the fork in every locale", async () => {
+    for (const locale of appLocales) {
+      const target = await dictionary(`./${locale}.ts`)
+      expect(target["app.name.desktop"]).toMatch(/^OpenCode\+/)
+      expect(target["desktop.menu.ariaLabel"]).toContain("OpenCode+")
+    }
+  })
+
   test("non-English locales have every English key and required plural variants", async () => {
     for (const domain of domains) {
       const source = await dictionary(domain.source)

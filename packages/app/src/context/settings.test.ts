@@ -8,9 +8,17 @@ import {
   newLayoutDesignsDefault,
   nextSunsetCheckDelay,
   resolveNewLayoutDesigns,
+  sidebarDensity,
   shouldDisplayTabsToast,
   shouldEnableNewLayout,
 } from "./settings"
+
+test("normalizes sidebar density", () => {
+  expect(sidebarDensity(undefined)).toBe("comfortable")
+  expect(sidebarDensity("comfortable")).toBe("comfortable")
+  expect(sidebarDensity("compact")).toBe("compact")
+  expect(sidebarDensity("wide")).toBe("comfortable")
+})
 
 describe("agent visibility", () => {
   test("shows the picker for existing profiles and hides it for first-time installs", () => {

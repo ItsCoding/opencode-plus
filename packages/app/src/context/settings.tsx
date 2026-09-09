@@ -45,6 +45,7 @@ export interface Settings {
     mono: string
     sans: string
     terminal: string
+    sidebarDensity: SidebarDensity
   }
   keybinds: Record<string, string>
   permissions: {
@@ -180,6 +181,12 @@ export function terminalFontFamily(font: string | undefined) {
   return stack(font, terminalBase)
 }
 
+export type SidebarDensity = "comfortable" | "compact"
+
+export function sidebarDensity(value: unknown): SidebarDensity {
+  return value === "compact" ? "compact" : "comfortable"
+}
+
 const defaultSettings: Settings = {
   general: {
     autoSave: true,
@@ -201,6 +208,7 @@ const defaultSettings: Settings = {
     mono: "",
     sans: "",
     terminal: "",
+    sidebarDensity: "comfortable",
   },
   keybinds: {},
   permissions: {
@@ -460,6 +468,10 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
       },
       appearance: {
         fontSize: withFallback(() => store.appearance?.fontSize, defaultSettings.appearance.fontSize),
+        sidebarDensity: createMemo(() => sidebarDensity(store.appearance?.sidebarDensity)),
+        setSidebarDensity(value: SidebarDensity) {
+          setStore("appearance", "sidebarDensity", value)
+        },
         setFontSize(value: number) {
           setStore("appearance", "fontSize", value)
         },
