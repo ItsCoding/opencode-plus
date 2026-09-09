@@ -42,6 +42,11 @@ test.describe("touch", () => {
     await setup(page)
     await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
 
+    const dismissTabsInformation = page.getByRole("button", { name: "Dismiss Tabs information" })
+    await expect(dismissTabsInformation).toBeVisible()
+    await dismissTabsInformation.click()
+    await expect(dismissTabsInformation).toHaveCount(0)
+
     const inspector = page.locator('[data-component="contextual-inspector"]')
     const reviewButton = inspector.getByRole("button", { name: "Review" })
     const preview = page.locator('[data-component="contextual-inspector-preview"]')
