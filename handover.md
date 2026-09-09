@@ -46,35 +46,37 @@ Run from `packages/app` unless noted otherwise:
 - `PLAYWRIGHT_PORT=3033 bun run test:stability`: 23 unit tests and 44 Playwright tests passed.
 - `PLAYWRIGHT_PORT=3034 bun run test:bench`: 21 passed in 6.7 minutes; all benchmark records emitted.
 - The unqualified stability command initially failed only because an orphan local preview server already owned port `3000`; use an isolated `PLAYWRIGHT_PORT` locally.
+- Inspector accessibility follow-up: `PLAYWRIGHT_PORT=3053 bun run test:e2e -- e2e/regression/unified-shell-rtl.spec.ts e2e/regression/contextual-inspector.spec.ts e2e/regression/unified-sidebar.spec.ts --workers=1` passed 13/13. Review and All files are now one native focus stop each, including the touch inspector case.
 
-## Historical Baseline Blocker
+## Historical Baseline Comparison
 
-The plan asks for before/after benchmark median comparison. The prior `/tmp` artifacts are unavailable on this Mac.
+The prior `/tmp` artifacts were unavailable, so the baseline was recreated in a detached worktree at `2e09a589d2` using the pinned Bun `1.3.14` and a frozen install.
 
-- A detached baseline worktree exists at `/var/folders/16/t92h0_nj4bn6v2q3yn31v6km0000gn/T/opencode/unified-shell-baseline` on `2e09a589d2`.
-- `bun install --frozen-lockfile` completed there.
-- Its `bun run test:bench` passes 43 unit benchmark tests, builds the app, then fails before browser scenarios with:
+- Historical Playwright discovery initially loaded `timeline-stability/fixture.test.ts`, which imports `bun:test`; Node's Playwright loader rejected that import. The current `testMatch: "timeline/**/*.spec.ts"` restriction is a test-discovery fix, not a product change. Applying it only in the disposable baseline worktree restored the intended 21 browser benchmarks.
+- The historical run passed 43 unit benchmarks and emitted valid browser records for 19 of 21 scenarios.
+- Two historical scenarios remain excluded from comparison because their assertions are stale: the legacy review benchmark expects automatic `[data-component="session-review"]` rendering, and parent hydration constructs an invalid non-tool part ID. Neither changes the current product result.
+- Current Task 7 benchmark run: 21 passed. Historical normalized run: 19 passed, 2 stale-test failures.
 
-  ```text
-  Error: Only URLs with a scheme in: file, data, and node are supported by the default ESM loader. Received protocol 'bun:'
-  ```
+Comparable unchanged workloads, baseline to current:
 
-- This is a historical toolchain/runtime incompatibility, not a current product regression.
-- Comparing new sidebar benchmarks to the old titlebar benchmarks is only an end-to-end product comparison with equivalent workloads, not an interaction-cost comparison.
+| Workload | Baseline stable/readiness | Current stable/readiness | Result |
+| --- | ---: | ---: | --- |
+| First navigation, unvisited session | 64.7 ms | 76.3 ms | Blank-free in both runs; small timing variance. |
+| First navigation, child session | 100.1 ms | 95.6 ms | 4.5% faster. |
+| Review scaling, 10k changed lines | 177.7 ms | 178.2 ms | 0.3% slower, within run variance. |
+| Review scaling, 100k changed lines | 212.4 ms | 211.7 ms | 0.3% faster. |
+| Review scaling, 1m changed lines | 718.2 ms | 697.4 ms | 2.9% faster. |
+| V2 streaming, review closed | 137,093 ms | 118,544 ms | 13.5% faster. |
+| V2 streaming, diffs closed | 134,229 ms | 122,229 ms | 8.9% faster. |
+| V2 streaming, review open | 147,550 ms | 146,037 ms | 1.0% faster. |
 
-## Next Decision
+The comparison contains no material regression. Sidebar/titlebar replacement and new-draft creation workloads are behaviorally equivalent end-to-end checks, not interaction-cost comparisons, and retain their passing current records without a strict timing claim.
 
-Choose one before claiming the plan's baseline-comparison gate is complete:
+## Final Review
 
-1. Accept that the historical browser baseline is unavailable under the current runtime and retain the passing current benchmark record.
-2. Reconstruct the exact historical Bun/Node toolchain for `2e09a589d2`, rerun its browser benchmark suite, and compare family-by-family medians without adding machine-dependent thresholds.
-
-## Safe Continuation
-
-1. Check `git status --short` and `git log --oneline -5`.
-2. If choosing the historical-runtime path, investigate the `bun:` loader failure in the detached baseline worktree; do not alter current Task 7 production code to make historical tests run.
-3. If a new baseline is obtained, record the comparison outcome in this file and run a final whole-change review only if the comparison exposes a material regression.
-4. Use the finishing-development-branch workflow once the baseline decision is resolved.
+- Final unified navigation review: no confirmed runtime defects.
+- Final inspector accessibility review: no findings after `ef6c39b55a` stabilized its RTL fixture.
+- The contextual-inspector touch test dismisses the unconditional onboarding card through its accessible control before the real tap. It uses no retries, sleeps, force clicks, or storage coupling.
 
 ## Worktree Safety
 
