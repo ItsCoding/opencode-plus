@@ -122,6 +122,21 @@ test("accepts documented first-party subscription credential sources", async () 
   ).resolves.toEqual({ state: "unauthenticated" })
 })
 
+test("passes the Claude executable to the subscription probe", async () => {
+  const received: unknown[] = []
+  await probeClaudeCode({
+    query: async (...args: unknown[]) => {
+      received.push(...args)
+      return {
+        accountInfo: async () => ({ apiProvider: "firstParty" as const, subscriptionType: "pro", apiKeySource: "oauth" }),
+        supportedModels: async () => CLAUDE_CODE_FAMILY_ORDER.map((value) => ({ value, displayName: value, description: "" })),
+        close() {},
+      }
+    },
+  })
+  expect(received[0]).toMatchObject({ pathToClaudeCodeExecutable: expect.any(String) })
+})
+
 test("maps probe failures by the SDK phase and failure type", async () => {
   await expect(
     probeClaudeCode({ query: async () => { throw new Error("Claude Code runtime is not installed") } }),

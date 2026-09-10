@@ -1,4 +1,6 @@
 import type { AccountInfo, ModelInfo, Options } from "@anthropic-ai/claude-agent-sdk"
+import { extractFromBunfs } from "@anthropic-ai/claude-agent-sdk/extract"
+import { createRequire } from "module"
 import { mkdtemp, rm } from "fs/promises"
 import os from "os"
 import path from "path"
@@ -138,6 +140,7 @@ export async function probeClaudeCode(input: ProbeInput = {}): Promise<ClaudeCod
         tools: [],
         strictMcpConfig: true,
         env: sanitized.env,
+        pathToClaudeCodeExecutable: extractFromBunfs(await executable()),
       })
     } catch (error) {
       return classifyProbeError(error, "runtime")
@@ -212,6 +215,18 @@ async function defaultQuery(options: Options): Promise<ClaudeCodeQuery> {
 }
 
 async function* emptyPrompt() {}
+
+async function executable() {
+  if (!Bun.embeddedFiles.length) {
+    return createRequire(import.meta.resolve("@anthropic-ai/claude-agent-sdk")).resolve(
+      `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/${process.platform === "win32" ? "claude.exe" : "claude"}`,
+    )
+  }
+  // Generated and embedded by script/build.ts; source runs never resolve this virtual module.
+  // @ts-expect-error build-only virtual module
+  const generated = await import("opencode-claude-code.gen.ts")
+  return generated.default
+}
 
 export const availabilityLayer = Layer.succeed(
   ClaudeCodeAvailability.Service,
