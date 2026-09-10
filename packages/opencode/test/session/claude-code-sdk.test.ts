@@ -30,7 +30,7 @@ test("accepts an OpenCode-shaped MCP result from a Zod raw shape", async () => {
   expect(server.name).toBe("opencode")
 })
 
-test.skipIf(!live)("proves the live Agent SDK contract with the default Claude Code configuration", async () => {
+test.skipIf(!live)("proves the live Agent SDK contract and resumed subscription context", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-claude-sdk-"))
   const toolName = "mcp__opencode__ping"
   const store = new InMemorySessionStore()
@@ -73,8 +73,10 @@ test.skipIf(!live)("proves the live Agent SDK contract with the default Claude C
 
   try {
     const run = query({
-      prompt: 'Call mcp__opencode__ping exactly once with input "{\\"request\\":\\"ping\\"}", then reply with PONG.',
+      prompt:
+        'Remember the word CEDAR. Call mcp__opencode__ping exactly once with input "{\\"request\\":\\"ping\\"}", then reply with PONG.',
       options: {
+        model: "claude-sonnet-5",
         cwd: root,
         tools: [],
         allowedTools: [toolName],
@@ -122,8 +124,9 @@ test.skipIf(!live)("proves the live Agent SDK contract with the default Claude C
     expect((partialText || result.result).match(/PONG/g)?.length ?? 0).toBe(1)
 
     const resumed = query({
-      prompt: "Reply with RESUMED.",
+      prompt: "What word did I ask you to remember? Reply with only the word.",
       options: {
+        model: "claude-sonnet-5",
         cwd: root,
         tools: [],
         allowedTools: [toolName],
@@ -137,7 +140,9 @@ test.skipIf(!live)("proves the live Agent SDK contract with the default Claude C
     })
     const resumedMessages = []
     for await (const message of resumed) resumedMessages.push(message)
-    expect(resumedMessages.some((message) => message.type === "result" && message.subtype === "success")).toBe(true)
+    const resumedResult = resumedMessages.find((message) => message.type === "result" && message.subtype === "success")
+    if (!resumedResult || resumedResult.subtype !== "success") throw new Error("Agent SDK did not resume successfully")
+    expect(resumedResult.result).toContain("CEDAR")
 
     const forbidden = path.join(root, "forbidden")
     const denied = query({
