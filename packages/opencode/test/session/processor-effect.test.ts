@@ -186,7 +186,7 @@ const env = LayerNode.compile(
 
 const it = testEffect(env)
 
-const providerErrorLLM = Layer.succeed(
+const providerExecutedLLM = Layer.succeed(
   LLM.Service,
   LLM.Service.of({
     stream: () =>
@@ -198,7 +198,7 @@ const providerErrorLLM = Layer.succeed(
         LLMEvent.toolResult({
           id: "call-1",
           name: "lookup",
-          result: { type: "error", value: "provider boom" },
+          result: { type: "json", value: { title: "Lookup", metadata: {}, output: "provider ok" } },
           providerExecuted: true,
         }),
         LLMEvent.stepFinish({ index: 0, reason: "stop" }),
@@ -206,8 +206,8 @@ const providerErrorLLM = Layer.succeed(
       ),
   }),
 )
-const providerErrorEnv = LayerNode.compile(root, [...replacements, [LLM.node, providerErrorLLM]])
-const itProviderError = testEffect(providerErrorEnv)
+const providerExecutedEnv = LayerNode.compile(root, [...replacements, [LLM.node, providerExecutedLLM]])
+const itProviderExecuted = testEffect(providerExecutedEnv)
 
 const fragmentFailureLLM = Layer.succeed(
   LLM.Service,
@@ -1069,7 +1069,7 @@ it.live("session.processor effect tests mark interruptions aborted without manua
   ),
 )
 
-itProviderError.live("session.processor effect tests fail provider-executed error results", () =>
+itProviderExecuted.live("session.processor effect tests preserve successful provider-executed results without a follow-up turn", () =>
   provideTmpdirInstance(
     (dir) =>
       Effect.gen(function* () {
@@ -1077,7 +1077,7 @@ itProviderError.live("session.processor effect tests fail provider-executed erro
         const events = yield* EventV2Bridge.Service
 
         const chat = yield* session.create({})
-        const parent = yield* user(chat.id, "provider tool error")
+        const parent = yield* user(chat.id, "provider tool result")
         const msg = yield* assistant(chat.id, parent.id, path.resolve(dir))
         const mdl = yield* provider.getModel(ref.providerID, ref.modelID)
         const seen: string[] = []
@@ -1100,15 +1100,19 @@ itProviderError.live("session.processor effect tests fail provider-executed erro
           model: mdl,
           agent: agent(),
           system: [],
-          messages: [{ role: "user", content: "provider tool error" }],
+          messages: [{ role: "user", content: "provider tool result" }],
           tools: {},
         })
         yield* off
 
         const parts = yield* MessageV2.parts(msg.id)
         const call = parts.find((part): part is SessionV1.ToolPart => part.type === "tool")
-        expect(call?.state.status).toBe("error")
-        if (call?.state.status === "error") expect(call.state.error).toBe("provider boom")
+        expect(call?.state.status).toBe("completed")
+        expect(call?.metadata?.providerExecuted).toBe(true)
+        const compacted = yield* MessageV2.filterCompactedEffect(chat.id)
+        const modelMessages = yield* Effect.promise(() => MessageV2.toModelMessages(compacted, mdl))
+        const assistantMessage = modelMessages.find((message) => message.role === "assistant")
+        expect(assistantMessage).toMatchObject({ content: [{ providerExecuted: true }, { type: "tool-result" }] })
         expect(seen).toContain(MessageV2.Event.PartUpdated.type)
         expect(seen).toContain(MessageV2.Event.Updated.type)
         expect(seen.filter((type) => type.startsWith("session.next."))).toEqual([])

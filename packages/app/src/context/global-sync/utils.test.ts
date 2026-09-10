@@ -118,6 +118,19 @@ describe("normalizeProviderList", () => {
   test("preserves an empty current default", () => {
     expect(normalizeProviderList([] as ProviderListOutput["data"], [], null).defaultModel).toBeNull()
   })
+
+  test("excludes provider availability records from the selectable catalog", () => {
+    const result = normalizeProviderList(
+      [
+        { id: "openai", name: "OpenAI", package: "@ai-sdk/openai" },
+        { providerID: "claude-code", state: "missing" },
+      ] as ProviderListOutput["data"],
+    )
+
+    expect(result.all.size).toBe(1)
+    expect(result.all.has("claude-code")).toBe(false)
+    expect(result.connected).toEqual(["openai"])
+  })
 })
 
 describe("directoryKey", () => {

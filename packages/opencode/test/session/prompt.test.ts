@@ -6,7 +6,7 @@ import { SessionProjector } from "@opencode-ai/core/session/projector"
 import { eq } from "drizzle-orm"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { expect } from "bun:test"
-import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
+import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer, Stream } from "effect"
 import path from "path"
 import { fileURLToPath } from "url"
 import { NamedError } from "@opencode-ai/core/util/error"
@@ -56,6 +56,7 @@ import { reply, TestLLMServer } from "../lib/llm-server"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
+import { LLMEvent } from "@opencode-ai/llm"
 import { LocationServiceMap, locationServiceMapLayer } from "@opencode-ai/core/location-services"
 
 const summary = Layer.succeed(
@@ -241,6 +242,27 @@ function makeHttpNoLLMServer(input?: { mcpInstructions?: MCP.ServerInstructions[
 
 const it = testEffect(makeHttp())
 const noLLMServer = testEffect(makeHttpNoLLMServer())
+let providerExecutedCalls = 0
+const providerExecutedPrompt = testEffect(
+  LayerNode.compile(promptRoot, [
+    [SessionSummary.node, summary],
+    [LSP.node, lsp],
+    [MCP.node, makeMcp()],
+    [RuntimeFlags.node, runtimeFlags],
+    [LLM.node, Layer.succeed(LLM.Service, LLM.Service.of({
+      stream: () => {
+        providerExecutedCalls++
+        return Stream.make(
+          LLMEvent.stepStart({ index: 0 }),
+          LLMEvent.toolCall({ id: "provider-call", name: "lookup", input: {}, providerExecuted: true }),
+          LLMEvent.toolResult({ id: "provider-call", name: "lookup", result: { type: "json", value: { output: "ok" } }, providerExecuted: true }),
+          LLMEvent.stepFinish({ index: 0, reason: "stop" }),
+          LLMEvent.finish({ reason: "stop" }),
+        )
+      },
+    }))],
+  ]),
+)
 const raceNoLLMServer = testEffect(makeHttpNoLLMServer({ processor: "blocking" }))
 const withMcpInstructions = testEffect(
   makeHttp({
@@ -551,6 +573,25 @@ it.instance("loop calls LLM and returns assistant message", () =>
     const parts = result.parts.filter((p) => p.type === "text")
     expect(parts.some((p) => p.type === "text" && p.text === "world")).toBe(true)
     expect(yield* llm.hits).toHaveLength(1)
+  }),
+)
+
+providerExecutedPrompt.instance("loop does not schedule a second turn after a provider-executed tool result", () =>
+  Effect.gen(function* () {
+    providerExecutedCalls = 0
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const chat = yield* sessions.create({ title: "Provider tool" })
+    yield* prompt.prompt({
+      sessionID: chat.id,
+      agent: "build",
+      noReply: true,
+      parts: [{ type: "text", text: "run lookup" }],
+    })
+
+    const result = yield* prompt.loop({ sessionID: chat.id })
+    expect(result.info.role).toBe("assistant")
+    expect(providerExecutedCalls).toBe(1)
   }),
 )
 

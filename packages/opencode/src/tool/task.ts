@@ -17,6 +17,7 @@ import { Database } from "@opencode-ai/core/database/database"
 import { Provider } from "@/provider/provider"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
+import { ClaudeCodeLLM } from "@/session/llm/claude-code"
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -288,8 +289,25 @@ export const TaskTool = Tool.define(
       const notify = Effect.fn("TaskTool.notifyBackgroundResult")(function* (jobID: string) {
         yield* background.wait({ id: jobID }).pipe(
           Effect.flatMap((result) => {
-            if (result.info?.status === "completed") return inject("completed", result.info.output ?? "")
-            if (result.info?.status === "error") return inject("error", result.info.error ?? "")
+            const info = result.info
+            if (info?.status === "completed" || info?.status === "error") {
+              return Effect.gen(function* () {
+                const parent = yield* sessions.get(ctx.sessionID)
+                if (parent.metadata?.claudeCode) {
+                  const claimed = yield* sessions.claimMetadataTask({
+                    sessionID: ctx.sessionID,
+                    key: "claudeCode",
+                    processInstanceID: ClaudeCodeLLM.PROCESS_INSTANCE_ID,
+                    taskID: jobID,
+                  })
+                  if (!claimed) return
+                }
+                yield* inject(
+                  info.status === "completed" ? "completed" : "error",
+                  info.status === "completed" ? info.output ?? "" : info.error ?? "",
+                )
+              })
+            }
             return Effect.void
           }),
           Effect.forkIn(scope, { startImmediately: true }),

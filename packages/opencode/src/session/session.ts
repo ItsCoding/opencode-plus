@@ -38,7 +38,7 @@ import { SessionID, MessageID, PartID } from "./schema"
 
 import type { Provider } from "@/provider/provider"
 import { Global } from "@opencode-ai/core/global"
-import { Effect, Layer, Option, Context, Schema, Types } from "effect"
+import { Effect, Layer, Option, Context, Schema, SynchronizedRef, Types } from "effect"
 import { NonNegativeInt, optional } from "@opencode-ai/core/schema"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderV2 } from "@opencode-ai/core/provider"
@@ -428,6 +428,14 @@ export interface Interface {
   readonly setTitle: (input: { sessionID: SessionID; title: string }) => Effect.Effect<void>
   readonly setArchived: (input: { sessionID: SessionID; time?: number }) => Effect.Effect<void>
   readonly setMetadata: (input: typeof SetMetadataInput.Type) => Effect.Effect<void>
+  readonly mergeMetadata: (input: { sessionID: SessionID; metadata: typeof Metadata.Type }) => Effect.Effect<void>
+  readonly claimMetadataTask: (input: {
+    sessionID: SessionID
+    key: string
+    processInstanceID: string
+    taskID: string
+  }) => Effect.Effect<boolean>
+  readonly clearMetadataKey: (input: { sessionID: SessionID; key: string }) => Effect.Effect<void>
   readonly setAgentModel: (input: {
     sessionID: SessionID
     agent: string
@@ -495,6 +503,7 @@ const layer: Layer.Layer<
     const background = yield* BackgroundJob.Service
     const events = yield* EventV2Bridge.Service
     const flags = yield* RuntimeFlags.Service
+    const metadataLock = yield* SynchronizedRef.make(undefined)
 
     const createNext = Effect.fn("Session.createNext")(function* (input: {
       id?: SessionID
@@ -619,6 +628,7 @@ const layer: Layer.Layer<
           yield* remove(child.id)
         }
 
+        yield* clearMetadataKey({ sessionID, key: "claudeCode" })
         yield* events.publish(SessionV1.Event.Deleted, { sessionID, info: session })
         yield* events.remove(sessionID)
       } catch (error) {
@@ -697,7 +707,9 @@ const layer: Layer.Layer<
         path: sessionPath(ctx.worktree, ctx.directory),
         workspaceID: original.workspaceID,
         title,
-        metadata: structuredClone(original.metadata),
+        metadata: original.metadata
+          ? Object.fromEntries(Object.entries(structuredClone(original.metadata)).filter(([key]) => key !== "claudeCode"))
+          : undefined,
       })
       const msgs = yield* messages({ sessionID: input.sessionID })
       const idMap = new Map<string, MessageID>()
@@ -762,12 +774,88 @@ const layer: Layer.Layer<
       yield* patch(input.sessionID, { metadata: input.metadata, time: { updated: Date.now() } }).pipe(Effect.orDie)
     })
 
+    const mergeMetadata = Effect.fn("Session.mergeMetadata")(function* (input: {
+      sessionID: SessionID
+      metadata: typeof Metadata.Type
+    }) {
+      yield* SynchronizedRef.modifyEffect(metadataLock, () =>
+        Effect.gen(function* () {
+          const current = yield* get(input.sessionID).pipe(Effect.orDie)
+          const claudeCode = input.metadata.claudeCode
+          const existingClaudeCode = current.metadata?.claudeCode
+          yield* patch(input.sessionID, {
+            metadata: {
+              ...(current.metadata ?? {}),
+              ...input.metadata,
+              ...(claudeCode && typeof claudeCode === "object" && existingClaudeCode && typeof existingClaudeCode === "object"
+                ? {
+                    claudeCode: {
+                      ...existingClaudeCode,
+                      ...claudeCode,
+                      ...(Array.isArray((existingClaudeCode as Record<string, unknown>).completedTaskIDs)
+                        ? { completedTaskIDs: (existingClaudeCode as Record<string, unknown>).completedTaskIDs }
+                        : {}),
+                    },
+                  }
+                : {}),
+            },
+            time: { updated: Date.now() },
+          }).pipe(Effect.orDie)
+          return [undefined, undefined] as const
+        }),
+      )
+    })
+
+    const claimMetadataTask = Effect.fn("Session.claimMetadataTask")(function* (input: {
+      sessionID: SessionID
+      key: string
+      processInstanceID: string
+      taskID: string
+    }) {
+      return yield* SynchronizedRef.modifyEffect(metadataLock, () =>
+        Effect.gen(function* () {
+          const current = yield* get(input.sessionID).pipe(Effect.orDie)
+          const value = current.metadata?.[input.key]
+          if (!value || typeof value !== "object" || Array.isArray(value)) return [false, undefined] as const
+          const mapping = value as Record<string, unknown>
+          if (mapping.processInstanceID !== input.processInstanceID) return [false, undefined] as const
+          const completedTaskIDs = Array.isArray(mapping.completedTaskIDs) ? mapping.completedTaskIDs : []
+          if (completedTaskIDs.includes(input.taskID)) return [false, undefined] as const
+          yield* patch(input.sessionID, {
+            metadata: {
+              ...(current.metadata ?? {}),
+              [input.key]: { ...mapping, completedTaskIDs: [...completedTaskIDs, input.taskID] },
+            },
+            time: { updated: Date.now() },
+          }).pipe(Effect.orDie)
+          return [true, undefined] as const
+        }),
+      )
+    })
+
+    const clearMetadataKey = Effect.fn("Session.clearMetadataKey")(function* (input: {
+      sessionID: SessionID
+      key: string
+    }) {
+      yield* SynchronizedRef.modifyEffect(metadataLock, () =>
+        Effect.gen(function* () {
+          const current = yield* get(input.sessionID).pipe(Effect.orDie)
+          if (!current.metadata || !(input.key in current.metadata)) return [undefined, undefined] as const
+          const metadata = { ...current.metadata }
+          delete metadata[input.key]
+          yield* patch(input.sessionID, { metadata, time: { updated: Date.now() } }).pipe(Effect.orDie)
+          return [undefined, undefined] as const
+        }),
+      )
+    })
+
     const setAgentModel = Effect.fn("Session.setAgentModel")(function* (input: {
       sessionID: SessionID
       agent: string
       model: NonNullable<Info["model"]>
       time: number
     }) {
+      yield* clearMetadataKey({ sessionID: input.sessionID, key: "claudeCode" })
       yield* patch(input.sessionID, {
         agent: input.agent,
         model: input.model,
@@ -789,6 +877,7 @@ const layer: Layer.Layer<
       revert: Info["revert"]
       summary: Info["summary"]
     }) {
+      yield* clearMetadataKey({ sessionID: input.sessionID, key: "claudeCode" })
       yield* patch(input.sessionID, {
         summary: input.summary,
         time: { updated: Date.now() },
@@ -797,6 +886,7 @@ const layer: Layer.Layer<
     })
 
     const clearRevert = Effect.fn("Session.clearRevert")(function* (sessionID: SessionID) {
+      yield* clearMetadataKey({ sessionID, key: "claudeCode" })
       yield* patch(sessionID, { time: { updated: Date.now() }, revert: null }).pipe(Effect.orDie)
     })
 
@@ -913,6 +1003,9 @@ const layer: Layer.Layer<
       setTitle,
       setArchived,
       setMetadata,
+      mergeMetadata,
+      claimMetadataTask,
+      clearMetadataKey,
       setAgentModel,
       setPermission,
       setRevert,

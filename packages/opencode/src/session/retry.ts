@@ -184,12 +184,13 @@ export function policy(opts: {
   provider: string
   parse: (error: unknown) => Err
   set: (input: { attempt: number; message: string; action?: Retryable["action"]; next: number }) => Effect.Effect<void>
+  canRetry?: () => boolean
 }) {
   return Schedule.fromStepWithMetadata(
     Effect.succeed((meta: Schedule.InputMetadata<unknown>) => {
       const error = opts.parse(meta.input)
       const retry = retryable(error, opts.provider)
-      if (!retry) return Cause.done(meta.attempt)
+      if (!retry || opts.canRetry?.() === false) return Cause.done(meta.attempt)
       if (meta.attempt > RETRY_MAX_RETRIES) return Cause.done(meta.attempt)
       return Effect.gen(function* () {
         const wait = delay(meta.attempt, SessionV1.APIError.isInstance(error) ? error : undefined)

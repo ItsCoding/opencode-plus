@@ -29,6 +29,9 @@ import * as OtelTracer from "@effect/opentelemetry/Tracer"
 import { LLMAISDK } from "./llm/ai-sdk"
 import { LLMNativeRuntime } from "./llm/native-runtime"
 import { LLMRequestPrep } from "./llm/request"
+import { ClaudeCodeLLM } from "./llm/claude-code"
+import { InstanceState } from "@/effect/instance-state"
+import { Session } from "./session"
 
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
 
@@ -45,6 +48,8 @@ export type StreamInput = {
   tools: Record<string, Tool>
   retries?: number
   toolChoice?: "auto" | "required" | "none"
+  summary?: boolean
+  claudeCode?: { query: NonNullable<Parameters<typeof ClaudeCodeLLM.stream>[0]["query"]> }
 }
 
 export type StreamRequest = StreamInput & {
@@ -68,7 +73,8 @@ const live: Layer.Layer<
   | Plugin.Service
   | Permission.Service
   | EventV2Bridge.Service
-  | LLMClientService
+   | LLMClientService
+   | Session.Service
   | RuntimeFlags.Service
 > = Layer.effect(
   Service,
@@ -81,6 +87,7 @@ const live: Layer.Layer<
     const events = yield* EventV2Bridge.Service
     const llmClient = yield* LLMClient.Service
     const flags = yield* RuntimeFlags.Service
+    const sessions = yield* Session.Service
 
     const run = Effect.fn("LLM.run")(function* (input: StreamRequest) {
       yield* Effect.logInfo("stream", {
@@ -92,9 +99,8 @@ const live: Layer.Layer<
         mode: input.agent.mode,
       })
 
-      const [language, cfg, item, info] = yield* Effect.all(
+      const [cfg, item, info] = yield* Effect.all(
         [
-          provider.getLanguage(input.model),
           config.get(),
           provider.getProvider(input.model.providerID),
           auth.get(input.model.providerID),
@@ -102,6 +108,7 @@ const live: Layer.Layer<
         { concurrency: "unbounded" },
       )
 
+      const language = input.model.providerID === "claude-code" ? undefined : yield* provider.getLanguage(input.model)
       const isWorkflow = language instanceof GitLabWorkflowLanguageModel
       const prepared = yield* LLMRequestPrep.prepare({
         ...input,
@@ -204,6 +211,60 @@ const live: Layer.Layer<
           }
         })
       }
+
+      if (input.model.providerID === "claude-code") {
+        const ctx = yield* InstanceState.context
+        const session = yield* sessions.get(SessionID.make(input.sessionID)).pipe(Effect.orDie)
+        const stored = session.metadata?.claudeCode
+        const metadata =
+          stored &&
+          typeof stored === "object" &&
+          typeof stored.sessionID === "string" &&
+          typeof stored.processInstanceID === "string" &&
+          typeof stored.alias === "string" &&
+          typeof stored.resolvedModel === "string" &&
+          typeof stored.lineage === "string"
+            ? (stored as ClaudeCodeLLM.SessionMetadata)
+            : undefined
+        const processInstanceID = ClaudeCodeLLM.PROCESS_INSTANCE_ID
+        const lineage = input.sessionID
+        const prompt = ClaudeCodeLLM.stream({
+          server: "opencode",
+          tools: prepared.tools,
+          messages: prepared.messages,
+          abort: input.abort,
+          prompt: "",
+          cwd: ctx.directory,
+          metadata,
+          alias: input.model.id,
+          resolvedModel: input.model.api.id,
+          processInstanceID,
+          lineage,
+          resumable: !input.small && !input.summary,
+          query: input.claudeCode?.query,
+          onSessionID: (sessionID, resolvedModel) =>
+            bridge.promise(
+              sessions.mergeMetadata({
+                sessionID: SessionID.make(input.sessionID),
+                metadata: {
+                  claudeCode: {
+                    sessionID,
+                    processInstanceID,
+                    alias: input.model.id,
+                    resolvedModel: resolvedModel ?? input.model.api.id,
+                    lineage,
+                  },
+                },
+              }),
+            ),
+        })
+        return {
+          type: "native" as const,
+          stream: Stream.fromAsyncIterable(prompt, (e) => (e instanceof Error ? e : new Error(String(e)))),
+        }
+      }
+
+      if (!language) throw new Error(`Language model unavailable for ${input.model.providerID}/${input.model.id}`)
 
       const tracer = cfg.experimental?.openTelemetry
         ? Option.getOrUndefined(yield* Effect.serviceOption(OtelTracer.OtelTracer))
@@ -398,6 +459,7 @@ export const node = LayerNode.make({
     EventV2Bridge.node,
     llmClient,
     RuntimeFlags.node,
+    Session.node,
   ],
 })
 

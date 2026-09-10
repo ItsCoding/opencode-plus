@@ -4,17 +4,24 @@ import { HttpApiBuilder } from "effect/unstable/httpapi"
 import { Api } from "../api"
 import { ProviderNotFoundError } from "@opencode-ai/protocol/errors"
 import { response } from "../location"
+import { ClaudeCodeAvailability } from "../claude-code"
+
+export const providerList = Effect.fn("ProviderHttpApi.list")(function* () {
+  const catalog = yield* Catalog.Service
+  const claudeCode = yield* ClaudeCodeAvailability.Service
+  const providers = yield* catalog.provider.available()
+  return yield* response(
+    Effect.succeed([
+      ...providers,
+      yield* claudeCode.probe(),
+    ]),
+  )
+})
 
 export const ProviderHandler = HttpApiBuilder.group(Api, "server.provider", (handlers) =>
   Effect.gen(function* () {
     return handlers
-      .handle(
-        "provider.list",
-        Effect.fn(function* () {
-          const catalog = yield* Catalog.Service
-          return yield* response(catalog.provider.available())
-        }),
-      )
+      .handle("provider.list", providerList)
       .handle(
         "provider.get",
         Effect.fn(function* (ctx) {

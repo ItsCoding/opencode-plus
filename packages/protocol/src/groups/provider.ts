@@ -5,11 +5,40 @@ import { HttpApiEndpoint, HttpApiGroup, OpenApi } from "effect/unstable/httpapi"
 import { ProviderNotFoundError, ServiceUnavailableError } from "../errors"
 import { LocationQuery, locationQueryOpenApi } from "./location"
 
+export const ProviderAvailability = Schema.Union([
+  Schema.Struct({
+    providerID: Schema.Literal("claude-code"),
+    state: Schema.Literal("available"),
+  }),
+  Schema.Struct({
+    providerID: Schema.Literal("claude-code"),
+    state: Schema.Literal("missing"),
+  }),
+  Schema.Struct({
+    providerID: Schema.Literal("claude-code"),
+    state: Schema.Literal("unauthenticated"),
+  }),
+  Schema.Struct({
+    providerID: Schema.Literal("claude-code"),
+    state: Schema.Literal("unsupported-runtime"),
+    runtime: Schema.String,
+  }),
+  Schema.Struct({
+    providerID: Schema.Literal("claude-code"),
+    state: Schema.Literal("unsupported-model"),
+    alias: Schema.String,
+  }),
+]).annotate({ identifier: "ProviderAvailability" })
+
+export const ProviderList = Schema.Array(Schema.Union([Provider.Info, ProviderAvailability])).annotate({
+  identifier: "ProviderList",
+})
+
 export const ProviderGroup = HttpApiGroup.make("server.provider")
   .add(
     HttpApiEndpoint.get("provider.list", "/api/provider", {
       query: LocationQuery,
-      success: Location.response(Schema.Array(Provider.Info)),
+      success: Location.response(ProviderList),
       error: ServiceUnavailableError,
     })
       .annotateMerge(locationQueryOpenApi)

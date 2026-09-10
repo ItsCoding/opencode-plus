@@ -72,8 +72,9 @@ export function normalizeProviderList(
     }
   }
   const all = new Map<string, Provider>()
+  const selectable = providers.filter((provider) => "id" in provider)
 
-  for (const provider of providers) {
+  for (const provider of selectable) {
     all.set(provider.id, {
       id: provider.id,
       name: provider.name,
@@ -138,10 +139,10 @@ export function normalizeProviderList(
 
   return {
     all,
-    connected: providers.map((provider) => provider.id),
+    connected: selectable.map((provider) => provider.id),
     defaultModel: defaultModel ? { providerID: defaultModel.providerID, modelID: defaultModel.id } : null,
     default: Object.fromEntries(
-      providers.flatMap((provider) => {
+      selectable.flatMap((provider) => {
         const model =
           defaultModel?.providerID === provider.id
             ? defaultModel

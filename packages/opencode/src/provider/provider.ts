@@ -31,6 +31,7 @@ import { ModelV2 } from "@opencode-ai/core/model"
 import { ModelStatus } from "./model-status"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderError } from "./error"
+import { ClaudeCode } from "./claude-code"
 
 const OPENAI_HEADER_TIMEOUT_DEFAULT = 300_000
 
@@ -1577,6 +1578,16 @@ const layer = Layer.effect(
             parsed.models[modelID] = parsedModel
           }
           database[providerID] = parsed
+        }
+
+        const claudeCodeID = ProviderV2.ID.make("claude-code")
+        if (isProviderAllowed(claudeCodeID)) {
+          const result = yield* Effect.promise(() => ClaudeCode.probeClaudeCode())
+          if (result.state === "available") {
+            catalog[claudeCodeID] = result.provider
+            database[claudeCodeID] = result.provider
+            providers[claudeCodeID] = result.provider
+          }
         }
 
         // load env

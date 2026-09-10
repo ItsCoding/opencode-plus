@@ -1,283 +1,115 @@
 # Claude Subscription Provider Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Goal:** Add a fail-closed `claude-code` subscription provider using the Claude Agent SDK while OpenCode remains the sole owner of tools, permissions, sessions, and subagents.
 
-**Goal:** Add a built-in `claude-code` provider that uses a local authenticated Claude Code subscription while OpenCode owns tools, permissions, sessions, and subagents.
-
-**Architecture:** A session LLM adapter launches or resumes the Claude Agent SDK and exposes the prepared OpenCode tool set through an in-process MCP server. It converts SDK output and MCP execution into the existing `LLMEvent` stream, so `SessionProcessor` continues to persist tool and text parts normally. A durable SDK-session mapping is stored in existing session metadata and is reused when OpenCode processes the synthetic completion prompt from an existing background `task`.
-
-**Tech Stack:** Bun, TypeScript, Effect v4, Claude Agent SDK, in-process MCP, existing OpenCode `LLMEvent` and tool registry.
+**Architecture:** A gated SDK adapter converts a verified in-process MCP server and SDK stream into the existing `LLMEvent` stream. SDK-owned MCP calls are marked `providerExecuted: true`; OpenCode records them but never repeats them. SDK resume is intentionally same-process only, with incremental prompt projection and no background recovery after restart.
 
 ## Global Constraints
 
-- Add `@anthropic-ai/claude-agent-sdk` only to `packages/opencode`; do not add an HTTP proxy or sidecar.
-- Verify the SDK works in Bun before enabling the provider; stop and request a revised design if it is Node-only.
-- Use only OpenCode-provided MCP tools; disable Claude Code built-ins and do not configure the SDK `Agent` tool or SDK subagents.
-- Expose exactly `haiku`, `sonnet`, `opus`, and `fable`; pass the alias through for Claude Code to resolve.
-- Store no Anthropic API keys or subscription credentials.
-- Preserve OpenCode's existing tool execution, permission requests, cancellation, persistence, and `task` behavior.
-- Do not commit unless the user explicitly requests it.
+- Modify only `packages/opencode` and generated client artifacts required by Protocol/HttpApi changes; never hand-edit generated files.
+- Add no proxy, sidecar, custom SDK protocol, durable job system, API-key fallback, Claude Code built-ins, SDK agents, SDK settings/plugins, or external MCP sources.
+- Keep `claude-code` unavailable until every feasibility check passes, including exact mappings for all four stable model families.
+- Use a sanitized SDK environment and fail closed on a non-subscription credential source.
+- Do not commit unless explicitly requested.
 
 ---
 
-### Task 1: Verify The SDK Runtime Boundary
+### Task 1: Prove The Agent SDK Boundary Before Provider Code
 
 **Files:**
-- Modify: `packages/opencode/package.json`
-- Modify: `bun.lock`
+- Modify: `packages/opencode/package.json`, `bun.lock`
+- Modify: `packages/opencode/script/build.ts`
 - Create: `packages/opencode/test/session/claude-code-sdk.test.ts`
 
-**Interfaces:**
-- Consumes: local Claude Agent SDK package exports `query`, SDK message types, and the SDK in-process MCP server constructor.
-- Produces: a Bun-only regression test proving one SDK stream can invoke a code-defined MCP tool and resume by SDK session ID without Claude Code built-in tools.
+- [ ] Add and pin `@anthropic-ai/claude-agent-sdk` from `packages/opencode`.
+- [ ] Write offline type/contract tests around the installed exports. Verify `tool()` accepts the single Zod string `input` field, a handler returns valid `CallToolResult`, and the raw server/tool definitions are `opencode` and `ping`. Verify the qualified `mcp__opencode__ping` provider advertisement only from the initialized live SDK message; the SDK server object does not expose that qualified identifier offline.
+- [ ] Add opt-in `CLAUDE_CODE_LIVE_TEST=1` checks in Bun that prove: the exact advertised/allowed tool name; a real MCP call and documented tool-use ID; `allowedTools` plus `permissionMode: "dontAsk"` deny a requested built-in; `settingSources: []`, disabled memory, an explicit temporary `cwd`, and sole MCP server take effect; partial text arrives once; `resume` works with the selected session store; `accountInfo` identifies subscription authentication; and each stable family maps to one exact reported SDK identifier. For this single-user local fork, intentionally reuse the default Claude Code configuration and login without reading, copying, or managing credentials.
+- [ ] Exercise an OpenCode-shaped tool result containing text, JSON, error, and a supported attachment. Assert the SDK accepts its `CallToolResult` conversion.
+- [ ] Make `script/build.ts` install the matching Agent SDK platform package for every build target and embed the target Claude executable as a Bun file asset. Verify the supported local build includes that asset.
+- [ ] Stop here if any check fails. Missing subscription signal, failed Bun support, packaged-binary failure, or any missing model family leaves the provider unavailable and requires a revised design.
 
-- [ ] **Step 1: Add the SDK dependency from the package directory**
+Run normal checks: `bun test test/session/claude-code-sdk.test.ts` from `packages/opencode`.
 
-Run: `bun add @anthropic-ai/claude-agent-sdk` from `packages/opencode`.
+### Task 2: Add Explicit Provider Availability To The Wire Contract
 
-Expected: `packages/opencode/package.json` and the workspace lockfile contain the same resolved package version.
+**Files:**
+- Modify: Protocol provider schemas and Server provider HttpApi definitions/handlers
+- Regenerate: `packages/client/src/generated`, `packages/client/src/generated-effect`
+- Create/modify: provider Protocol, server, and client tests
 
-- [ ] **Step 2: Write the failing runtime-contract test**
+- [ ] Write failing end-to-end contract tests for typed `claude-code` availability states: `available`, `missing`, `unauthenticated`, `unsupported-runtime`, and `unsupported-model`.
+- [ ] Extend the provider list response with an availability record rather than overloading `connected` or `ProviderAuthApiError`. Existing selectable providers retain their current shape.
+- [ ] Implement the smallest typed availability record and client rendering path. `missing` says install/update Claude Code; `unauthenticated` says log in with Claude Code; unsupported states identify the local runtime or required alias. Never mention API-key setup.
+- [ ] Run `bun run generate` from `packages/client`; do not edit generated files directly.
+- [ ] Run focused Protocol, Server, and client tests plus `bun typecheck` from each affected package.
 
-Create `packages/opencode/test/session/claude-code-sdk.test.ts` with an opt-in test guarded by `CLAUDE_CODE_LIVE_TEST=1`. The test must construct one in-process MCP server named `opencode` with a `ping` tool returning `{ output: "pong" }`, run `query()` with only `mcp__opencode__ping` permitted, capture `message.session_id`, and run a second `query()` with `resume: sessionID`.
-
-```ts
-const enabled = process.env.CLAUDE_CODE_LIVE_TEST === "1"
-
-test.skipIf(!enabled)("runs in Bun with OpenCode-owned MCP tools and resumes", async () => {
-  // Construct the SDK MCP server from its installed TypeScript definitions.
-  // The test must call the real local Claude Code login; no credentials belong in the repository.
-  expect(sessionID).toBeString()
-  expect(toolCalls).toBe(1)
-})
-```
-
-- [ ] **Step 3: Run the test without credentials**
-
-Run: `bun test test/session/claude-code-sdk.test.ts` from `packages/opencode`.
-
-Expected: PASS with the live test skipped.
-
-- [ ] **Step 4: Run the opt-in local compatibility check**
-
-Run: `CLAUDE_CODE_LIVE_TEST=1 bun test test/session/claude-code-sdk.test.ts` from `packages/opencode` on a machine with a logged-in Claude Code subscription.
-
-Expected: PASS; the tool is called once and the resumed query accepts the captured SDK session ID.
-
-- [ ] **Step 5: Gate the rest of the implementation**
-
-If the live compatibility check fails due to Bun or SDK transport incompatibility, stop here. Record the exact error in the PR or issue and request approval for a sidecar design. Do not emulate the Agent SDK protocol.
-
-### Task 2: Add A Built-In Local Provider Catalog And Availability Check
+### Task 3: Add The Static Alias Catalog And Subscription Probe
 
 **Files:**
 - Create: `packages/opencode/src/provider/claude-code.ts`
-- Modify: `packages/opencode/src/provider/provider.ts:174-206,1396-1641`
+- Modify: `packages/opencode/src/provider/provider.ts`
 - Create: `packages/opencode/test/provider/claude-code.test.ts`
 
-**Interfaces:**
-- Consumes: `Provider.Info`, `Provider.Model`, `ProviderV2.ID`, `ModelV2.ID`, and a small injected runtime probe.
-- Produces: `ClaudeCode.provider()` returning a static `claude-code` catalog and `ClaudeCode.available()` returning `{ type: "available" }`, `{ type: "missing" }`, or `{ type: "unauthenticated" }`.
+- [ ] Write failing tests for the static family-label order and every probe state. The probe maps every stable label to one exact `supportedModels()` identifier; any missing family makes the authenticated provider unavailable.
+- [ ] Implement the non-billing probe using the user's default Claude Code configuration and login. It uses documented SDK initialization/account/model APIs, a sanitized allowlist environment, empty `settingSources`, disabled memory, no SDK agents, and no unrequested MCP servers. Do not read, copy, or manage credentials.
+- [ ] Reject conflicting inherited Anthropic/API-key/helper/cloud credential variables and any non-subscription reported key source. Do not read, persist, or send credentials.
+- [ ] Build `Provider.Info` only after all stable family labels resolve to exact discovered SDK identifiers, with text and tool capability, conservative verified limits, and no environment key fields.
+- [ ] Run `bun test test/provider/claude-code.test.ts && bun typecheck` from `packages/opencode`.
 
-- [ ] **Step 1: Write failing catalog and availability tests**
-
-Test that a successful probe yields the provider with only `haiku`, `sonnet`, `opus`, and `fable`; a missing runtime yields no selectable provider; and an unauthenticated runtime yields the login guidance state. Test the aliases are passed unchanged to the runtime adapter.
-
-```ts
-expect(Object.keys(ClaudeCode.provider().models)).toEqual(["fable", "haiku", "opus", "sonnet"])
-expect(await ClaudeCode.available(() => Promise.resolve({ type: "missing" }))).toEqual({ type: "missing" })
-```
-
-- [ ] **Step 2: Run the focused provider test**
-
-Run: `bun test test/provider/claude-code.test.ts` from `packages/opencode`.
-
-Expected: FAIL because `ClaudeCode` does not exist.
-
-- [ ] **Step 3: Implement the static catalog and probe**
-
-Create `src/provider/claude-code.ts`. Build `Provider.Info` directly instead of adding these aliases to Models.dev. Give the models text input/output and tool-call capability, zero unknown cost fields, and no API key environment variables. The probe must use the SDK/Claude Code runtime's documented local authentication status rather than read credentials or scrape configuration.
-
-```ts
-export const id = ProviderV2.ID.make("claude-code")
-
-export const aliases = ["haiku", "sonnet", "opus", "fable"] as const
-```
-
-Update the `custom(dep)` initialization path in `provider.ts` to add the static catalog before `mergeProvider`, then autoload it only when the probe returns `available`. Keep the unavailable reason available to the provider-auth UI path; never manufacture an `Auth.Api` entry.
-
-- [ ] **Step 4: Run focused tests and typecheck**
-
-Run: `bun test test/provider/claude-code.test.ts && bun typecheck` from `packages/opencode`.
-
-Expected: PASS.
-
-### Task 3: Build The SDK-To-OpenCode Event And MCP Tool Bridge
+### Task 4: Build A Verified SDK MCP And Event Adapter
 
 **Files:**
 - Create: `packages/opencode/src/session/llm/claude-code.ts`
 - Create: `packages/opencode/test/session/claude-code.test.ts`
 
-**Interfaces:**
-- Consumes: normalized `LLM.StreamInput`, prepared AI SDK tools, an `AbortSignal`, and an SDK session ID.
-- Produces: `ClaudeCodeLLM.stream(input): Stream.Stream<LLMEvent, Error>` and `ClaudeCodeLLM.sessionID(event): string | undefined`.
+- [ ] Write offline scripted-SDK tests that cover `step-start`, partial text, reasoning where supported, `tool-call`, `tool-result` or `tool-error`, `step-finish`, and `finish`. Final assistant content must not duplicate partial deltas.
+- [ ] Implement the Task 1 JSON-input bridge. Convert every prepared OpenCode tool to one SDK string field named `input`, put its full existing JSON Schema in the description, parse the JSON into an unknown object, and delegate validation to the existing OpenCode tool validator. Generate the SDK-qualified allowed name from the MCP server key.
+- [ ] Allocate an OpenCode-local unique `callID` per MCP handler. Emit `tool-call` before execution and `tool-result`/`tool-error` with that same ID before returning valid MCP content to the SDK. Do not require or synthesize an SDK `tool_use_id`. Mark both events `providerExecuted: true`.
+- [ ] Pass the prepared tool its original messages and the query abort signal. Translate validation failure, permission denial, cancellation, and tool failure to a settled OpenCode part and MCP `isError` response.
+- [ ] Test that `providerExecuted: true` persists through `SessionProcessor` and `MessageV2`, and that `SessionPrompt` does not initiate an extra provider turn or execute the tool twice.
+- [ ] Add cancellation, malformed input, schema rejection, built-in denial, and result-conversion tests. Run `bun test test/session/claude-code.test.ts && bun typecheck` from `packages/opencode`.
+- [ ] Add an opt-in packaged-binary live-query smoke. The real adapter imports the production generated asset, extracts it with `extractFromBunfs`, passes it as `pathToClaudeCodeExecutable` to `query`, and completes a harmless authenticated MCP query.
 
-- [ ] **Step 1: Write failing adapter tests from scripted SDK events**
-
-Use an injected `query` implementation, not globals, to script SDK assistant text, streamed text deltas, MCP tool requests, result usage, and a session ID. Assert the adapter emits OpenCode `step-start`, text events, `tool-call`, `tool-result`, `step-finish`, and `finish` events in order.
-
-```ts
-expect(events).toMatchObject([
-  { type: "step-start", index: 0 },
-  { type: "tool-call", id: "call_1", name: "bash", input: { command: "pwd" } },
-  { type: "tool-result", id: "call_1", name: "bash" },
-  { type: "finish" },
-])
-```
-
-- [ ] **Step 2: Run the adapter test**
-
-Run: `bun test test/session/claude-code.test.ts` from `packages/opencode`.
-
-Expected: FAIL because the adapter does not exist.
-
-- [ ] **Step 3: Implement a per-turn in-process MCP server**
-
-For every prepared OpenCode tool, publish an `mcp__opencode__<tool>` definition using the existing AI SDK JSON schema and description. Its callback must:
-
-1. Allocate or retain the SDK tool-call ID.
-2. Emit an `LLMEvent.toolCall` before executing the prepared OpenCode tool.
-3. Await the existing prepared tool `execute` function with the turn's abort signal and original message context.
-4. Emit `LLMEvent.toolResult` or `LLMEvent.toolError` from the real result.
-5. Return that exact output to the SDK MCP call.
-
-Configure the SDK with this MCP server, `allowedTools: ["mcp__opencode__*"]`, and a locked-down permission mode. Do not expose or approve Claude Code built-ins. Translate partial SDK stream events into `LLMEvent` text/reasoning events and translate final result usage into `step-finish` and `finish`.
-
-- [ ] **Step 4: Add cancellation and malformed-tool-input cases**
-
-Add scripted tests showing an aborted input aborts the SDK query and prepared tool execution, and a rejected OpenCode tool input becomes `tool-error` without leaving a pending OpenCode tool part.
-
-- [ ] **Step 5: Run adapter tests and typecheck**
-
-Run: `bun test test/session/claude-code.test.ts && bun typecheck` from `packages/opencode`.
-
-Expected: PASS.
-
-### Task 4: Integrate The Provider Into Session Execution And Persist SDK Sessions
+### Task 5: Integrate Incremental Prompts And Same-Process SDK Lifecycle
 
 **Files:**
-- Modify: `packages/opencode/src/session/llm.ts:35-56,75-383`
-- Modify: `packages/opencode/src/session/prompt.ts:1257-1286`
-- Modify: `packages/opencode/src/session/compaction.ts:420-448`
-- Modify: `packages/opencode/src/session/processor.ts:435-497`
-- Modify: `packages/opencode/test/session/llm.test.ts`
+- Modify: `packages/opencode/src/session/llm.ts`, `packages/opencode/src/session/prompt.ts`, `packages/opencode/src/session/processor.ts`, `packages/opencode/src/session/session.ts`, and fork/revert/delete paths
+- Create/modify: `packages/opencode/test/session/llm.test.ts`, lifecycle tests
 
-**Interfaces:**
-- Consumes: `session.metadata.claudeCodeSessionID` and an OpenCode `StreamInput` selected with `providerID === "claude-code"`.
-- Produces: normal `LLMEvent` processing with an SDK session ID persisted only after a successful SDK provider turn.
+- [ ] Write lifecycle tests first. Cover session-ID capture and atomic merge before a tool handler runs; metadata reload before every same-drain turn; initial full-history projection; resumed incremental-user-only projection; no compaction/summary replacement; and no generic retry after a handler starts.
+- [ ] Route `claude-code` before `Provider.getLanguage()` and `streamText()`, but reuse OpenCode request preparation and prepared tools. Add an adapter-specific input containing the latest metadata record and the one projected user input, not the complete history on resume.
+- [ ] Persist `{ sessionID, processInstanceID, alias, resolvedModel, lineage }` as a merged metadata record. Reload metadata at every provider-turn boundary. On the same process, resume only when process ID, alias, model, and lineage match. Otherwise start a fresh SDK session from the full projection.
+- [ ] Make post-tool SDK failures non-retryable. Pre-tool transport retries must use the established record and must be tested not to duplicate an admitted user input.
+- [ ] Clear the mapping on OpenCode fork, revert, alias/model change, explicit removal, and deletion. Test that a fork cannot resume the original SDK conversation.
+- [ ] On process-instance mismatch, clear/ignore the mapping and start the next foreground request fresh. Do not add recovery or transcript persistence.
+- [ ] Run focused lifecycle tests and `bun typecheck` from `packages/opencode`.
 
-- [ ] **Step 1: Write failing session-resume tests**
-
-Add a session-level test that starts a `claude-code/sonnet` stream yielding SDK session ID `sdk-1`, then processes a second prompt in the same OpenCode session. Assert the second adapter invocation receives `resume: "sdk-1"`. Add failure cases asserting a failed initial SDK turn and a transient compaction turn do not replace the persisted ID.
-
-```ts
-expect(calls).toEqual([
-  { model: "sonnet", resume: undefined },
-  { model: "sonnet", resume: "sdk-1" },
-])
-```
-
-- [ ] **Step 2: Run the focused test**
-
-Run: `bun test test/session/llm.test.ts --test-name-pattern "claude-code"` from `packages/opencode`.
-
-Expected: FAIL because `claude-code` still reaches `Provider.getLanguage()`.
-
-- [ ] **Step 3: Route before AI SDK language-model resolution**
-
-In `session/llm.ts`, check `input.model.providerID === "claude-code"` before the parallel `provider.getLanguage()` call. Prepare the same system text, transformed messages, and tools OpenCode uses for other providers, then delegate to `ClaudeCodeLLM.stream`. Do not call `streamText()` or `Provider.getLanguage()` for this provider.
-
-Add `claudeCode?: { sessionID?: string; persist: boolean }` to `LLM.StreamInput`. The primary prompt call site passes the existing `session.metadata.claudeCodeSessionID` with `persist: true`; compaction uses `persist: false` and no resumable session ID. On a successful persisted Claude Code step, `SessionProcessor` saves the returned SDK session ID through the existing `Session.setMetadata` API, merging rather than replacing unrelated session metadata. Do not add a database column: `SessionTable.metadata` already stores JSON metadata.
-
-- [ ] **Step 4: Preserve the background-task continuation path**
-
-Add a test that invokes the existing `task` tool with `background: true`, completes the `BackgroundJob`, and verifies its synthetic prompt re-enters the same `claude-code` SDK session via the persisted mapping. Do not modify `src/tool/task.ts`; its existing `injectBackgroundResult()` behavior is the continuation trigger.
-
-- [ ] **Step 5: Run focused tests and typecheck**
-
-Run: `bun test test/session/llm.test.ts --test-name-pattern "claude-code" && bun typecheck` from `packages/opencode`.
-
-Expected: PASS.
-
-### Task 5: Surface Availability And Provider Errors To Clients
+### Task 6: Limit Background Completion To The Existing Process
 
 **Files:**
-- Modify: `packages/opencode/src/provider/error.ts`
-- Modify: `packages/opencode/src/server/routes/instance/httpapi/handlers/provider.ts`
-- Modify: `packages/opencode/test/provider/claude-code.test.ts`
-- Modify: `packages/opencode/test/server/routes/instance/httpapi/handlers/provider.test.ts`
+- Modify: the smallest session/task continuation seam required for a task completion claim
+- Create/modify: `packages/opencode/test/session/claude-code-background.test.ts`
 
-**Interfaces:**
-- Consumes: `ClaudeCode.available()` failure state.
-- Produces: an existing protocol-compatible provider-auth error that says either to install Claude Code or authenticate with Claude Code.
+- [ ] Write tests for a background `task` returning immediately, its synthetic result becoming the next incremental SDK input, and exactly one same-process completion resume per task ID.
+- [ ] Persist the task-ID claim in the merged SDK metadata before scheduling the resume. Claim it atomically; duplicate notifications do nothing. A failed resume produces a visible provider error and preserves the completed task output without rerunning it.
+- [ ] Test restart behavior explicitly: existing `BackgroundJob` state is process-local, so restart loses active work and schedules no missed completion prompt or SDK resume.
+- [ ] Keep the existing `task` behavior unless the smallest claim seam requires a change; do not add a durable queue, polling loop, or recovery worker.
+- [ ] Run `bun test test/session/claude-code-background.test.ts && bun typecheck` from `packages/opencode`.
 
-- [ ] **Step 1: Write failing HTTP/provider error tests**
-
-Assert a missing runtime produces an install instruction, an unauthenticated runtime produces a login instruction, and neither response includes an API-key setup field.
-
-```ts
-expect(error.message).toContain("Log in with Claude Code")
-expect(error.message).not.toContain("ANTHROPIC_API_KEY")
-```
-
-- [ ] **Step 2: Run focused tests**
-
-Run: `bun test test/provider/claude-code.test.ts test/server/routes/instance/httpapi/handlers/provider.test.ts` from `packages/opencode`.
-
-Expected: FAIL because the provider-specific availability errors are not mapped.
-
-- [ ] **Step 3: Implement the smallest error mapping**
-
-Reuse the existing provider-auth error shape. Add only a `claude-code` branch that turns the typed availability failure into the two actionable messages. Keep all other providers unchanged.
-
-- [ ] **Step 4: Run focused tests, all session tests, and typecheck**
-
-Run: `bun test test/provider/claude-code.test.ts test/session/claude-code.test.ts test/session/llm.test.ts && bun typecheck` from `packages/opencode`.
-
-Expected: PASS.
-
-### Task 6: Verify The Built-In Provider End To End
+### Task 7: Final Verification And Version Record
 
 **Files:**
-- Modify: `packages/opencode/test/session/claude-code-sdk.test.ts`
 - Modify: `docs/superpowers/specs/2026-09-08-claude-subscription-provider-design.md`
+- Modify: live-test files only when required by validated SDK behavior
 
-**Interfaces:**
-- Consumes: a local authenticated Claude Code subscription and `CLAUDE_CODE_LIVE_TEST=1`.
-- Produces: an opt-in regression test covering provider selection, an OpenCode tool, and a resumed follow-up SDK session.
-
-- [ ] **Step 1: Extend the opt-in test through the real OpenCode provider path**
-
-Select `claude-code/sonnet`, prompt the real session to call a harmless OpenCode tool, then send a follow-up prompt. Assert the tool was persisted as an OpenCode tool part and the SDK session was resumed.
-
-- [ ] **Step 2: Run the normal suite**
-
-Run: `bun test test/session/claude-code-sdk.test.ts` from `packages/opencode`.
-
-Expected: PASS with live-only coverage skipped.
-
-- [ ] **Step 3: Run the authenticated live check**
-
-Run: `CLAUDE_CODE_LIVE_TEST=1 bun test test/session/claude-code-sdk.test.ts` from `packages/opencode`.
-
-Expected: PASS on a logged-in machine. Skip this command in CI and when no subscription is available.
-
-- [ ] **Step 4: Update the design verification note**
-
-Append the tested Agent SDK version, Claude Code version, Bun version, and the exact verified command to the design document. Do not record subscription identity, tokens, prompts, or credentials.
+- [ ] Run all offline provider, adapter, lifecycle, background, Protocol, Server, and client tests from their package directories, then each affected package's `bun typecheck`.
+- [ ] Run opt-in authenticated source and packaged-binary checks on a logged-in subscription machine. These are release checks, not normal CI.
+- [ ] Append the validated SDK version, bundled Claude Code version, Bun version, package-build target, and exact commands to the design. Do not record identities, credentials, prompts, or tokens.
+- [ ] If a live or packaged check fails, keep the provider unavailable and record the external constraint. Do not relax the feasibility gate.
 
 ## Plan Self-Review
 
-- Spec coverage: Tasks 1-2 cover runtime, catalog, aliases, and availability; Task 3 covers the MCP bridge and OpenCode-native tool events; Task 4 covers persistence and background-task resume; Task 5 covers actionable errors; Task 6 covers live verification.
-- Placeholder scan: no unresolved markers or deferred implementation steps remain. The only gate is the deliberate Bun compatibility stop condition required by the approved design.
-- Type consistency: `ClaudeCodeLLM.stream`, `LLM.StreamInput`, `session.metadata.claudeCodeSessionID`, and `ClaudeCode.available` are consistently named across the plan.
+- Tasks 1 and 7 distinguish offline contracts, authenticated source checks, and packaged-binary checks.
+- Task 2 changes Protocol/HttpApi/client generation because the existing provider list cannot represent unavailable states.
+- Tasks 4 and 5 preserve one OpenCode execution per SDK MCP call and prevent history duplication or post-side-effect retries.
+- Task 6 deliberately documents same-process background behavior and adds no ungrounded durability promise.

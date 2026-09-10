@@ -522,7 +522,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
           async refresh(ref?: LocationRef) {
             const result = await sdk.client.v2.provider.list({ location: locationQuery(ref) }, { throwOnError: true })
             const key = locationKey(result.data.location)
-            setStore("location", key, "provider", result.data.data)
+            setStore("location", key, "provider", result.data.data.filter((item): item is ProviderV2Info => "id" in item))
           },
         },
         reference: {

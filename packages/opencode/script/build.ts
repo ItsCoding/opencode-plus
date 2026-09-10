@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { $ } from "bun"
+import { createRequire } from "module"
 import path from "path"
 import { fileURLToPath } from "url"
 import { createSolidTransformPlugin } from "@opentui/solid/bun-plugin"
@@ -141,6 +142,7 @@ if (!skipInstall) {
   await $`bun install --os="*" --cpu="*" @opentui/core@${pkg.dependencies["@opentui/core"]}`
   await $`bun install --os="*" --cpu="*" @parcel/watcher@${pkg.dependencies["@parcel/watcher"]}`
   await $`bun install --os="*" --cpu="*" @ff-labs/fff-bun@${pkg.dependencies["@ff-labs/fff-bun"]}`
+  await $`bun install --os="*" --cpu="*" @anthropic-ai/claude-agent-sdk@${pkg.dependencies["@anthropic-ai/claude-agent-sdk"]}`
 }
 for (const item of targets) {
   const name = [
@@ -159,6 +161,10 @@ for (const item of targets) {
   const workerPath = "./src/cli/tui/worker.ts"
   const treeSitterWorkerPath = "opentui-tree-sitter-worker.js"
   const bunfsRoot = item.os === "win32" ? "B:/~BUN/root/" : "/$bunfs/root/"
+  const claudeExecutablePath = createRequire(import.meta.resolve("@anthropic-ai/claude-agent-sdk")).resolve(
+    `@anthropic-ai/claude-agent-sdk-${item.os}-${item.arch}${item.abi === "musl" ? "-musl" : ""}/${item.os === "win32" ? "claude.exe" : "claude"}`,
+  )
+  const claudeExecutable = "opencode-claude-code.gen.ts"
 
   await Bun.build({
     conditions: ["bun", "node"],
@@ -181,12 +187,15 @@ for (const item of targets) {
     },
     files: {
       [treeSitterWorkerPath]: treeSitterWorker,
+      [claudeExecutable]: `import executable from ${JSON.stringify(claudeExecutablePath)} with { type: "file" }
+export default executable`,
       ...(embeddedFileMap ? { "opencode-web-ui.gen.ts": embeddedFileMap } : {}),
     },
     entrypoints: [
       "./src/index.ts",
       workerPath,
       treeSitterWorkerPath,
+      claudeExecutable,
       ...(embeddedFileMap ? ["opencode-web-ui.gen.ts"] : []),
     ],
     define: {

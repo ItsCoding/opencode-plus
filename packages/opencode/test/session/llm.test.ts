@@ -28,6 +28,11 @@ import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { LayerNodePlatform } from "@opencode-ai/core/effect/app-node-platform"
 import { ProviderError } from "@/provider/error"
+import { claudeCodeProvider } from "@/provider/claude-code"
+import { SessionProjector } from "@opencode-ai/core/session/projector"
+import { SessionProcessor } from "@/session/processor"
+import { PartID } from "@/session/schema"
+import { ClaudeCodeLLM } from "@/session/llm/claude-code"
 
 type ConfigModel = NonNullable<NonNullable<ConfigV1.Info["provider"]>[string]["models"]>[string]
 
@@ -54,6 +59,13 @@ const openAIConfig = (model: ModelsDev.Provider["models"][string], baseURL: stri
 }
 
 const it = testEffect(AppNodeBuilder.build(LayerNode.group([LLM.node, Provider.node])))
+
+const claudeModel = claudeCodeProvider({ sonnet: "claude-sonnet-4-5" }).models.sonnet!
+const claudeQueryRoot = AppNodeBuilder.build(
+  LayerNode.group([LLM.node, SessionProcessor.node, SessionNs.node, SessionProjector.node, Provider.node]),
+  [[Provider.node, Layer.mock(Provider.Service, { getProvider: () => Effect.succeed(claudeCodeProvider({ sonnet: "claude-sonnet-4-5" })) })]],
+)
+const claudeIt = testEffect(claudeQueryRoot)
 
 // LLM.stream returns a Stream, not an Effect, so we can't use the serviceUse proxy.
 const drain = (input: LLM.StreamInput) => LLM.Service.use((svc) => svc.stream(input).pipe(Stream.runDrain))
@@ -85,6 +97,290 @@ function llmLayerWithExecutor(
     ...(options.executor ? ([[LayerNodePlatform.requestExecutor, options.executor]] as const) : []),
   ])
 }
+
+claudeIt.instance("routes Claude Code through LLM metadata capture and resume", () =>
+  Effect.gen(function* () {
+    const sessions = yield* SessionNs.Service
+    const llm = yield* LLM.Service
+    const session = yield* sessions.create({ metadata: { preserved: true } })
+    const requests: Array<{ prompt: string; resume?: string }> = []
+    const query = (input: { prompt: string; options: unknown }) => {
+      requests.push({ prompt: input.prompt, resume: (input.options as { resume?: string }).resume })
+      return (async function* () {
+        yield { type: "system", subtype: "init", session_id: "sdk-session", model: "claude-sonnet-4-5" }
+        yield { type: "result", subtype: "success", result: "done", is_error: false }
+      })()
+    }
+    const agent = { name: "test", mode: "primary", options: {}, permission: [] } satisfies Agent.Info
+    const input = (text: string, id: string): LLM.StreamInput => ({
+      user: {
+        id: MessageID.make(id),
+        sessionID: session.id,
+        role: "user",
+        time: { created: Date.now() },
+        agent: agent.name,
+        model: { providerID: claudeModel.providerID, modelID: claudeModel.id },
+      },
+      sessionID: session.id,
+      model: claudeModel,
+      agent,
+      system: ["system"],
+      messages: [{ role: "user", content: text }],
+      tools: {},
+      claudeCode: { query },
+    })
+
+    yield* llm.stream(input("first", "msg_first")).pipe(Stream.runDrain)
+    expect((yield* sessions.get(session.id)).metadata).toMatchObject({
+      preserved: true,
+      claudeCode: { sessionID: "sdk-session" },
+    })
+    yield* llm.stream(input("second", "msg_second")).pipe(Stream.runDrain)
+
+    expect(requests).toHaveLength(2)
+    expect(requests[0]).toMatchObject({ resume: undefined })
+    expect(requests[0]?.prompt).toContain("USER:\nfirst")
+    expect(requests[1]).toEqual({ prompt: "USER:\nsecond", resume: "sdk-session" })
+  }),
+)
+
+claudeIt.instance("keeps background completion claims when an SDK init refreshes the mapping", () =>
+  Effect.gen(function* () {
+    const sessions = yield* SessionNs.Service
+    const llm = yield* LLM.Service
+    const session = yield* sessions.create({})
+    yield* sessions.mergeMetadata({
+      sessionID: session.id,
+      metadata: {
+        claudeCode: {
+          sessionID: "sdk-session",
+          processInstanceID: ClaudeCodeLLM.PROCESS_INSTANCE_ID,
+          alias: claudeModel.id,
+          resolvedModel: claudeModel.api.id,
+          lineage: session.id,
+          completedTaskIDs: ["task-1"],
+        },
+      },
+    })
+    const agent = { name: "test", mode: "primary", options: {}, permission: [] } satisfies Agent.Info
+    yield* llm
+      .stream({
+        user: {
+          id: MessageID.make("msg_refresh"),
+          sessionID: session.id,
+          role: "user",
+          time: { created: Date.now() },
+          agent: agent.name,
+          model: { providerID: claudeModel.providerID, modelID: claudeModel.id },
+        },
+        sessionID: session.id,
+        model: claudeModel,
+        agent,
+        system: [],
+        messages: [{ role: "user", content: "resume" }],
+        tools: {},
+        claudeCode: {
+          query: () =>
+            (async function* () {
+              yield { type: "system", subtype: "init", session_id: "refreshed-sdk-session" }
+              yield { type: "result", subtype: "success", result: "done", is_error: false }
+            })(),
+        },
+      })
+      .pipe(Stream.runDrain)
+
+    expect((yield* sessions.get(session.id)).metadata?.claudeCode).toMatchObject({
+      sessionID: "refreshed-sdk-session",
+      completedTaskIDs: ["task-1"],
+    })
+  }),
+  20_000,
+)
+
+claudeIt.instance("starts fresh for a mismatched mapping and clears lifecycle mappings", () =>
+  Effect.gen(function* () {
+    const sessions = yield* SessionNs.Service
+    const llm = yield* LLM.Service
+    const mapping = {
+      sessionID: "stale-sdk-session",
+      processInstanceID: "stale-process",
+      alias: "sonnet",
+      resolvedModel: "claude-sonnet-4-5",
+      lineage: "stale-lineage",
+    }
+    const session = yield* sessions.create({ metadata: { claudeCode: mapping, preserved: true } })
+    const requests: Array<{ prompt: string; resume?: string }> = []
+    const query = (input: { prompt: string; options: unknown }) => {
+      requests.push({ prompt: input.prompt, resume: (input.options as { resume?: string }).resume })
+      return (async function* () {
+        yield { type: "system", subtype: "init", session_id: "new-sdk-session" }
+        yield { type: "result", subtype: "success", result: "done", is_error: false }
+      })()
+    }
+    const agent = { name: "test", mode: "primary", options: {}, permission: [] } satisfies Agent.Info
+    yield* llm.stream({
+      user: {
+        id: MessageID.make("msg_mismatch"),
+        sessionID: session.id,
+        role: "user",
+        time: { created: Date.now() },
+        agent: agent.name,
+        model: { providerID: claudeModel.providerID, modelID: claudeModel.id },
+      },
+      sessionID: session.id,
+      model: claudeModel,
+      agent,
+      system: [],
+      messages: [{ role: "user", content: "fresh" }],
+      tools: {},
+      claudeCode: { query },
+    }).pipe(Stream.runDrain)
+
+    expect(requests[0]?.resume).toBeUndefined()
+
+    const changed = { ...claudeModel, id: ModelV2.ID.make("sonnet-next") }
+    yield* sessions.mergeMetadata({ sessionID: session.id, metadata: { claudeCode: mapping } })
+    yield* sessions.setAgentModel({ sessionID: session.id, agent: "test", model: changed, time: Date.now() })
+    expect((yield* sessions.get(session.id)).metadata?.claudeCode).toBeUndefined()
+
+    yield* sessions.mergeMetadata({ sessionID: session.id, metadata: { claudeCode: mapping } })
+    yield* sessions.setRevert({ sessionID: session.id, revert: { messageID: MessageID.make("msg_mismatch") }, summary: undefined })
+    expect((yield* sessions.get(session.id)).metadata?.claudeCode).toBeUndefined()
+
+    yield* sessions.mergeMetadata({ sessionID: session.id, metadata: { claudeCode: mapping } })
+    const fork = yield* sessions.fork({ sessionID: session.id })
+    expect(fork.metadata?.claudeCode).toBeUndefined()
+    yield* sessions.clearMetadataKey({ sessionID: session.id, key: "claudeCode" })
+    expect((yield* sessions.get(session.id)).metadata?.claudeCode).toBeUndefined()
+    yield* sessions.remove(session.id)
+    expect((yield* sessions.get(session.id).pipe(Effect.exit))).toMatchObject({ _tag: "Failure" })
+    yield* sessions.remove(fork.id)
+  }),
+)
+
+claudeIt.instance("flushes a provider-executed tool before an immediate SDK failure", () =>
+  Effect.gen(function* () {
+    const sessions = yield* SessionNs.Service
+    const llm = yield* LLM.Service
+    const session = yield* sessions.create({})
+    const agent = { name: "test", mode: "primary", options: {}, permission: [] } satisfies Agent.Info
+    const events: unknown[] = []
+    const metadata: unknown[] = []
+    const query = (input: { prompt: string; options: unknown }) => {
+      const server = (input.options as {
+        mcpServers: { opencode: { instance: { _registeredTools: Record<string, { handler: (input: { input: string }) => Promise<unknown> }> } } }
+      }).mcpServers.opencode.instance
+      return (async function* () {
+        yield { type: "system", subtype: "init", session_id: "sdk-session" }
+        await server._registeredTools.ping!.handler({ input: "{}" })
+        throw new Error("503 immediate SDK failure")
+      })()
+    }
+
+    const exit = yield* llm.stream({
+      user: {
+        id: MessageID.make("msg_tool_failure"),
+        sessionID: session.id,
+        role: "user",
+        time: { created: Date.now() },
+        agent: agent.name,
+        model: { providerID: claudeModel.providerID, modelID: claudeModel.id },
+      },
+      sessionID: session.id,
+      model: claudeModel,
+      agent,
+      system: [],
+      messages: [{ role: "user", content: "run ping" }],
+      tools: {
+        ping: tool({
+          description: "Ping",
+          inputSchema: z.object({}),
+          execute: async () => {
+            metadata.push(await Effect.runPromise(sessions.get(session.id)))
+            return { title: "Ping", output: "pong", metadata: {} }
+          },
+        }),
+      },
+      claudeCode: { query },
+    }).pipe(
+      Stream.tap((event) => Effect.sync(() => events.push(event))),
+      Stream.runDrain,
+      Effect.exit,
+    )
+
+    expect(exit._tag).toBe("Failure")
+    expect((metadata[0] as { metadata?: { claudeCode?: { sessionID?: string } } }).metadata?.claudeCode?.sessionID).toBe("sdk-session")
+    expect(events).toContainEqual(expect.objectContaining({ type: "tool-call", providerExecuted: true }))
+  }),
+)
+
+claudeIt.instance("does not retry after a provider-executed tool and immediate SDK failure", () =>
+  Effect.gen(function* () {
+    const sessions = yield* SessionNs.Service
+    const processors = yield* SessionProcessor.Service
+    const session = yield* sessions.create({})
+    const agent = { name: "test", mode: "primary", options: {}, permission: [] } satisfies Agent.Info
+    const user = yield* sessions.updateMessage({
+      id: MessageID.make("msg_retry_user"),
+      sessionID: session.id,
+      role: "user",
+      time: { created: Date.now() },
+      agent: agent.name,
+      model: { providerID: claudeModel.providerID, modelID: claudeModel.id },
+    })
+    const message: SessionV1.Assistant = {
+      id: MessageID.make("msg_retry_assistant"),
+      sessionID: session.id,
+      role: "assistant",
+      mode: "primary",
+      agent: agent.name,
+      path: { cwd: session.directory, root: session.directory },
+      cost: 0,
+      tokens: { total: 0, input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      providerID: claudeModel.providerID,
+      modelID: claudeModel.id,
+      parentID: user.id,
+      time: { created: Date.now() },
+    }
+    yield* sessions.updateMessage(message)
+    const calls: string[] = []
+    const query = (input: { prompt: string; options: unknown }) => {
+      const server = (input.options as {
+        mcpServers: { opencode: { instance: { _registeredTools: Record<string, { handler: (input: { input: string }) => Promise<unknown> }> } } }
+      }).mcpServers.opencode.instance
+      return (async function* () {
+        yield { type: "system", subtype: "init", session_id: "sdk-session" }
+        await server._registeredTools.ping!.handler({ input: "{}" })
+        throw new Error("503 immediate SDK failure")
+      })()
+    }
+    const handle = yield* processors.create({ assistantMessage: message, sessionID: session.id, model: claudeModel })
+    yield* handle.process({
+      user,
+      sessionID: session.id,
+      model: claudeModel,
+      agent,
+      system: [],
+      messages: [{ role: "user", content: "run ping" }],
+      tools: {
+        ping: tool({
+          description: "Ping",
+          inputSchema: z.object({}),
+          execute: async () => {
+            calls.push("handler")
+            return { title: "Ping", output: "pong", metadata: {} }
+          },
+        }),
+      },
+      claudeCode: { query },
+    }).pipe(Effect.exit)
+
+    const parts = (yield* sessions.messages({ sessionID: session.id })).find((item) => item.info.id === message.id)?.parts ?? []
+    expect(calls).toEqual(["handler"])
+    expect(parts.filter((part) => part.type === "tool").map((part) => part.state.status)).toEqual(["completed"])
+    expect(parts.find((part): part is SessionV1.ToolPart => part.type === "tool")?.metadata?.providerExecuted).toBe(true)
+  }),
+)
 
 describe("session.llm.hasToolCalls", () => {
   test("returns false for empty messages array", () => {

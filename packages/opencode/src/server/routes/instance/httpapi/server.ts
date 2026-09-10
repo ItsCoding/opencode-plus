@@ -104,6 +104,7 @@ import { buildLocationServiceMap, LocationServiceMap } from "@opencode-ai/core/l
 import { layer as locationLayer } from "@opencode-ai/server/location"
 import { sessionLocationLayer } from "@opencode-ai/server/middleware/session-location"
 import { PtyEnvironment } from "@opencode-ai/server/pty-environment"
+import { ClaudeCode } from "@/provider/claude-code"
 import { schemaErrorLayer as v2SchemaErrorLayer } from "@opencode-ai/server/middleware/schema-error"
 import { workspaceHandlers } from "./handlers/workspace"
 import { instanceContextLayer } from "./middleware/instance-context"
@@ -176,6 +177,7 @@ const instanceRoutes = instanceApiRoutes.pipe(
 )
 const serverRoutes = HttpApiBuilder.layer(Api).pipe(
   Layer.provide(handlers),
+  Layer.provide(ClaudeCode.availabilityLayer),
   Layer.provide(PluginPtyEnvironment.layer),
   Layer.provide([serverHttpApiAuthLayer, v2SchemaErrorLayer]),
 )

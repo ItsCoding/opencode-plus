@@ -72,6 +72,7 @@ interface ProcessorContext extends Input {
   needsCompaction: boolean
   currentText: SessionV1.TextPart | undefined
   reasoningMap: Record<string, SessionV1.ReasoningPart>
+  toolStarted: boolean
 }
 
 type StreamEvent = LLMEvent
@@ -111,6 +112,7 @@ const layer = Layer.effect(
         needsCompaction: false,
         currentText: undefined,
         reasoningMap: {},
+        toolStarted: false,
       }
       let aborted = false
 
@@ -333,6 +335,7 @@ const layer = Layer.effect(
               throw new Error(`Tool call not allowed while generating summary: ${value.name}`)
             }
             yield* ensureToolCall(value)
+            if (value.providerExecuted) ctx.toolStarted = true
             const input = isRecord(value.input) ? value.input : { value: value.input }
             yield* updateToolCall(value.id, (match) => ({
               ...match,
@@ -644,6 +647,7 @@ const layer = Layer.effect(
           messageID: input.assistantMessage.id,
         })
         ctx.needsCompaction = false
+        ctx.toolStarted = false
         ctx.shouldBreak = (yield* config.get()).experimental?.continue_loop_on_deny !== true
 
         return yield* Effect.gen(function* () {
@@ -651,7 +655,7 @@ const layer = Layer.effect(
             ctx.currentText = undefined
             ctx.reasoningMap = {}
             yield* status.set(ctx.sessionID, { type: "busy" })
-            const stream = llm.stream(streamInput)
+            const stream = llm.stream({ ...streamInput, summary: ctx.assistantMessage.summary })
 
             yield* stream.pipe(
               Stream.tap((event) => handleEvent(event)),
@@ -675,6 +679,7 @@ const layer = Layer.effect(
               SessionRetry.policy({
                 provider: input.model.providerID,
                 parse,
+                canRetry: () => !ctx.toolStarted,
                 set: (info) => {
                   return status.set(ctx.sessionID, {
                     type: "retry",

@@ -1998,24 +1998,33 @@ export type ProvidersListOutput = {
     readonly workspaceID?: string
     readonly project: { readonly id: string; readonly directory: string }
   }
-  readonly data: ReadonlyArray<{
-    readonly id: string
-    readonly integrationID?: string
-    readonly name: string
-    readonly disabled?: boolean
-    readonly api:
-      | {
-          readonly type: "aisdk"
-          readonly package: string
-          readonly url?: string
-          readonly settings?: { readonly [x: string]: JsonValue }
+  readonly data: ReadonlyArray<
+    | {
+        readonly id: string
+        readonly integrationID?: string
+        readonly name: string
+        readonly disabled?: boolean
+        readonly api:
+          | {
+              readonly type: "aisdk"
+              readonly package: string
+              readonly url?: string
+              readonly settings?: { readonly [x: string]: JsonValue }
+            }
+          | { readonly type: "native"; readonly url?: string; readonly settings: { readonly [x: string]: JsonValue } }
+        readonly request: {
+          readonly headers: { readonly [x: string]: string }
+          readonly body: { readonly [x: string]: JsonValue }
         }
-      | { readonly type: "native"; readonly url?: string; readonly settings: { readonly [x: string]: JsonValue } }
-    readonly request: {
-      readonly headers: { readonly [x: string]: string }
-      readonly body: { readonly [x: string]: JsonValue }
-    }
-  }>
+      }
+    | (
+        | { readonly providerID: "claude-code"; readonly state: "available" }
+        | { readonly providerID: "claude-code"; readonly state: "missing" }
+        | { readonly providerID: "claude-code"; readonly state: "unauthenticated" }
+        | { readonly providerID: "claude-code"; readonly state: "unsupported-runtime"; readonly runtime: string }
+        | { readonly providerID: "claude-code"; readonly state: "unsupported-model"; readonly alias: string }
+      )
+  >
 }
 
 export type ProvidersGetInput = {

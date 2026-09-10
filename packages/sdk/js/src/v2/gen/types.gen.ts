@@ -2784,6 +2784,32 @@ export type SessionMessagesResponse = {
   }
 }
 
+export type ProviderAvailability =
+  | {
+      providerID: "claude-code"
+      state: "available"
+    }
+  | {
+      providerID: "claude-code"
+      state: "missing"
+    }
+  | {
+      providerID: "claude-code"
+      state: "unauthenticated"
+    }
+  | {
+      providerID: "claude-code"
+      state: "unsupported-runtime"
+      runtime: string
+    }
+  | {
+      providerID: "claude-code"
+      state: "unsupported-model"
+      alias: string
+    }
+
+export type ProviderList = Array<ProviderV2Info | ProviderAvailability>
+
 export type ProviderNotFoundError = {
   _tag: "ProviderNotFoundError"
   providerID: string
@@ -12110,7 +12136,7 @@ export type V2ProviderListResponses = {
    */
   200: {
     location: LocationInfo
-    data: Array<ProviderV2Info>
+    data: ProviderList
   }
 }
 

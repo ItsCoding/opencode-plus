@@ -238,6 +238,44 @@ describe("Session", () => {
     }),
   )
 
+  it.instance("merges concurrent SDK metadata without dropping unrelated keys", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionNs.Service
+      const created = yield* Effect.acquireRelease(session.create({ metadata: { user: "value" } }), (info) =>
+        session.remove(info.id).pipe(Effect.ignore),
+      )
+
+      yield* Effect.all(
+        [
+          session.mergeMetadata({ sessionID: created.id, metadata: { claudeCode: { sessionID: "sdk" } } }),
+          session.mergeMetadata({ sessionID: created.id, metadata: { other: "value" } }),
+        ],
+        { concurrency: "unbounded" },
+      )
+
+      expect((yield* session.get(created.id)).metadata).toEqual({
+        user: "value",
+        claudeCode: { sessionID: "sdk" },
+        other: "value",
+      })
+    }),
+  )
+
+  it.instance("forks without the Claude Code mapping", () =>
+    Effect.gen(function* () {
+      const session = yield* SessionNs.Service
+      const created = yield* Effect.acquireRelease(
+        session.create({ metadata: { claudeCode: { sessionID: "sdk" }, user: "value" } }),
+        (info) => session.remove(info.id).pipe(Effect.ignore),
+      )
+      const fork = yield* Effect.acquireRelease(session.fork({ sessionID: created.id }), (info) =>
+        session.remove(info.id).pipe(Effect.ignore),
+      )
+
+      expect(fork.metadata).toEqual({ user: "value" })
+    }),
+  )
+
   it.instance("forks the chronological prefix across mixed message ID ordering", () =>
     Effect.gen(function* () {
       const session = yield* SessionNs.Service

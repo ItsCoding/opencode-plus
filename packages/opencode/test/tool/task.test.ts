@@ -26,6 +26,7 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { Provider } from "@/provider/provider"
 import { ProviderTest } from "../fake/provider"
+import { ClaudeCodeLLM } from "@/session/llm/claude-code"
 
 afterEach(async () => {
   await disposeAllInstances()
@@ -1260,6 +1261,181 @@ describe("tool.task", () => {
       const waited = yield* jobs.wait({ id: result.metadata.sessionId, timeout: 1_000 })
       expect(waited.timedOut).toBe(false)
       expect(waited.info?.status).toBe("completed")
+    }),
+  )
+
+  background.instance("background completion resumes Claude Code once with its synthetic result", () =>
+    Effect.gen(function* () {
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const injected = yield* Deferred.make<SessionPrompt.PromptInput>()
+      let childRuns = 0
+      let notifications = 0
+      yield* sessions.mergeMetadata({
+        sessionID: chat.id,
+        metadata: {
+          claudeCode: {
+            sessionID: "sdk-session",
+            processInstanceID: ClaudeCodeLLM.PROCESS_INSTANCE_ID,
+            alias: "sonnet",
+            resolvedModel: "claude-sonnet-4-5",
+            lineage: chat.id,
+          },
+        },
+      })
+      const promptOps: TaskPromptOps = {
+        cancel: () => Effect.void,
+        resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
+        prompt: (input) => {
+          if (input.sessionID !== chat.id) {
+            childRuns++
+            return Effect.succeed(reply(input, "background done"))
+          }
+          notifications++
+          return Deferred.succeed(injected, input).pipe(Effect.as(reply(input, "resumed")))
+        },
+      }
+      const context = {
+        sessionID: chat.id,
+        messageID: assistant.id,
+        agent: "build",
+        abort: new AbortController().signal,
+        extra: { promptOps },
+        messages: [],
+        metadata: () => Effect.void,
+        ask: () => Effect.void,
+      }
+
+      const started = yield* def.execute(
+        { description: "inspect bug", prompt: "look into the cache key path", subagent_type: "general", background: true },
+        context,
+      )
+      const notification = yield* Deferred.await(injected)
+      const text = notification.parts[0]
+      if (text?.type !== "text") throw new Error("background completion was not injected")
+      expect(
+        ClaudeCodeLLM.request({
+          metadata: (yield* sessions.get(chat.id)).metadata?.claudeCode as ClaudeCodeLLM.SessionMetadata,
+          current: {
+            sessionID: "sdk-session",
+            processInstanceID: ClaudeCodeLLM.PROCESS_INSTANCE_ID,
+            alias: "sonnet",
+            resolvedModel: "claude-sonnet-4-5",
+            lineage: chat.id,
+          },
+          messages: [{ role: "user", content: text.text }],
+          resumable: true,
+        }),
+      ).toEqual({ prompt: `USER:\n${text.text}`, resume: "sdk-session" })
+
+      expect(
+        yield* sessions.claimMetadataTask({
+          sessionID: chat.id,
+          key: "claudeCode",
+          processInstanceID: ClaudeCodeLLM.PROCESS_INSTANCE_ID,
+          taskID: started.metadata.sessionId,
+        }),
+      ).toBe(false)
+      expect(childRuns).toBe(1)
+      expect(notifications).toBe(1)
+      expect((yield* sessions.get(chat.id)).metadata?.claudeCode).toMatchObject({
+        completedTaskIDs: [started.metadata.sessionId],
+      })
+    }),
+  )
+
+  background.instance("background completion still notifies non-Claude sessions", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const injected = yield* Deferred.make<SessionPrompt.PromptInput>()
+      const result = yield* def.execute(
+        { description: "inspect bug", prompt: "look into the cache key path", subagent_type: "general", background: true },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: {
+            promptOps: {
+              ...stubOps({ text: "background done" }),
+              prompt: (input) =>
+                input.sessionID === chat.id
+                  ? Deferred.succeed(injected, input).pipe(Effect.as(reply(input, "notified")))
+                  : Effect.succeed(reply(input, "background done")),
+            } satisfies TaskPromptOps,
+          },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      const notification = yield* Deferred.await(injected)
+      expect(result.metadata.background).toBe(true)
+      expect(notification.parts[0]).toMatchObject({ type: "text", synthetic: true })
+    }),
+  )
+
+  background.instance("failed Claude Code resume leaves the completed task output visible", () =>
+    Effect.gen(function* () {
+      const jobs = yield* BackgroundJob.Service
+      const sessions = yield* Session.Service
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const injected = yield* Deferred.make<SessionPrompt.PromptInput>()
+      const providerError = {
+        name: "APIError" as const,
+        data: { message: "resume failed", isRetryable: false },
+      } satisfies NonNullable<SessionV1.Assistant["error"]>
+      let resumed: SessionV1.WithParts | undefined
+      yield* sessions.mergeMetadata({
+        sessionID: chat.id,
+        metadata: {
+          claudeCode: {
+            sessionID: "sdk-session",
+            processInstanceID: ClaudeCodeLLM.PROCESS_INSTANCE_ID,
+            alias: "sonnet",
+            resolvedModel: "claude-sonnet-4-5",
+            lineage: chat.id,
+          },
+        },
+      })
+      const result = yield* def.execute(
+        { description: "inspect bug", prompt: "look into the cache key path", subagent_type: "general", background: true },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: {
+            promptOps: {
+              cancel: () => Effect.void,
+              resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
+              prompt: (input) =>
+                input.sessionID === chat.id
+                  ? Effect.sync(() => {
+                      resumed = reply(input, "", providerError)
+                      return resumed
+                    }).pipe(Effect.tap(() => Deferred.succeed(injected, input)))
+                  : Effect.succeed(reply(input, "background done")),
+            } satisfies TaskPromptOps,
+          },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      const notification = yield* Deferred.await(injected)
+      const completed = yield* jobs.wait({ id: result.metadata.sessionId, timeout: 1_000 })
+      expect(notification.parts[0]).toMatchObject({ type: "text", synthetic: true, text: expect.stringContaining("background done") })
+      expect(completed.info?.output).toBe("background done")
+      expect(resumed?.info.role === "assistant" ? resumed.info.error : undefined).toEqual(providerError)
     }),
   )
 
