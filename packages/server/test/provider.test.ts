@@ -46,3 +46,9 @@ test("provider handler returns the actual Claude Code availability record", asyn
     ],
   })
 })
+
+test("provider handler works without a Claude Code availability service", async () => {
+  const response = await Effect.runPromise(providerList().pipe(Effect.provide(catalog), Effect.provide(location)))
+
+  expect(response).toMatchObject({ data: [{ id: "openai" }] })
+})
