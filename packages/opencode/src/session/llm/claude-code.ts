@@ -208,6 +208,7 @@ function adapterState() {
     step: 0,
     text: new Set<number>(),
     textID: new Map<number, string>(),
+    assistantText: new Map<number, string>(),
     reasoningID: new Map<number, string>(),
     started: false,
   }
@@ -242,35 +243,39 @@ function adapt(state: ReturnType<typeof adapterState>, value: unknown): LLMEvent
     return [...start, ...begin, LLMEvent.textDelta({ id, text: delta.text })]
   }
   if (message.type === "assistant") {
-    const events = state.started ? [] : [LLMEvent.stepStart({ index: state.step })]
-    state.started = true
     const content = message.message && typeof message.message === "object" ? (message.message as Record<string, unknown>).content : []
-    if (!Array.isArray(content)) return events
-    return content.reduce<LLMEvent[]>((all, part, index) => {
-      if (!part || typeof part !== "object") return all
+    if (!Array.isArray(content)) return []
+    content.forEach((part, index) => {
+      if (!part || typeof part !== "object") return
       const block = part as Record<string, unknown>
-      if (block.type !== "text" || typeof block.text !== "string" || state.text.has(index)) return all
-      const id = `text-${index}`
-      state.text.add(index)
-      state.textID.set(index, id)
-      return [...all, LLMEvent.textStart({ id }), LLMEvent.textDelta({ id, text: block.text })]
-    }, events)
+      if (block.type !== "text" || typeof block.text !== "string" || state.text.has(index)) return
+      state.assistantText.set(index, block.text)
+    })
+    return []
   }
   if (message.type === "result") {
     if (message.is_error === true || (typeof message.subtype === "string" && message.subtype !== "success")) {
       return [LLMEvent.providerError({ message: typeof message.result === "string" ? message.result : "Claude Code request failed" })]
     }
     const reason = finishReason(message.stop_reason)
-    const fallback = state.textID.size === 0 && typeof message.result === "string" && message.result
+    const pending = [...state.assistantText].filter(([index]) => !state.text.has(index)).flatMap(([index, text]) => {
+      const id = `text-${index}`
+      state.text.add(index)
+      state.textID.set(index, id)
+      return [LLMEvent.textStart({ id }), LLMEvent.textDelta({ id, text })]
+    })
+    const fallback = pending.length === 0 && state.textID.size === 0 && typeof message.result === "string" && message.result
       ? [
-          ...(state.started ? [] : [LLMEvent.stepStart({ index: state.step })]),
           LLMEvent.textStart({ id: "text-0" }),
           LLMEvent.textDelta({ id: "text-0", text: message.result }),
           LLMEvent.textEnd({ id: "text-0" }),
         ]
       : []
-    if (fallback.length) state.started = true
+    const start = !state.started && (pending.length > 0 || fallback.length > 0) ? [LLMEvent.stepStart({ index: state.step })] : []
+    if (start.length) state.started = true
     const events = [
+      ...start,
+      ...pending,
       ...fallback,
       ...state.textID.values().map((id) => LLMEvent.textEnd({ id })),
       ...state.reasoningID.values().map((id) => LLMEvent.reasoningEnd({ id })),

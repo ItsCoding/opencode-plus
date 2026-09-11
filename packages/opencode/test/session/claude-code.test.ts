@@ -356,6 +356,16 @@ test("uses streamed deltas instead of duplicating final assistant text", async (
   expect(events.filter((event) => event.type === "text-delta").map((event) => event.text).join("")).toBe("partial")
 })
 
+test("uses streamed deltas when the complete assistant message arrives first", async () => {
+  const events = await ClaudeCodeLLM.events([
+    { type: "assistant", message: { content: [{ type: "text", text: "title" }] } },
+    { type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "title" } } },
+    { type: "result", subtype: "success", stop_reason: "end_turn", result: "title" },
+  ])
+
+  expect(events.filter((event) => event.type === "text-delta").map((event) => event.text).join("")).toBe("title")
+})
+
 test("creates a complete text block when the SDK has no deltas", async () => {
   const events = await ClaudeCodeLLM.events([
     { type: "assistant", message: { content: [{ type: "text", text: "final" }] } },

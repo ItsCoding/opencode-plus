@@ -1683,6 +1683,10 @@ function ReasoningHeader(props: {
   )
 }
 
+export function isTextStreaming(completed: number | undefined) {
+  return completed === undefined
+}
+
 function TextPart(props: { last: boolean; part: TextPart; message: AssistantMessage }) {
   const ctx = use()
   const { theme, syntax } = useTheme()
@@ -1691,7 +1695,7 @@ function TextPart(props: { last: boolean; part: TextPart; message: AssistantMess
       <box ref={(el: BoxRenderable) => alwaysSeparate.add(el)} paddingLeft={3} marginTop={1} flexShrink={0}>
         <markdown
           syntaxStyle={syntax()}
-          streaming={true}
+          streaming={isTextStreaming(props.message.time.completed)}
           internalBlockMode="top-level"
           content={props.part.text.trim()}
           tableOptions={{ style: "grid" }}
