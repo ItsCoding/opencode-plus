@@ -2268,6 +2268,9 @@ export default function Page() {
           }}
           style={{
             width: sessionPanelWidth(),
+            // Let the full-width panel yield room to the inspector rail instead of pushing it off-screen.
+            "flex-shrink": newSessionDesign() && !desktopSidePanelOpen() ? 1 : undefined,
+            "min-width": newSessionDesign() && !desktopSidePanelOpen() ? "0" : undefined,
           }}
         >
           {settings.general.newLayoutDesigns() ? (

@@ -106,7 +106,16 @@ bun run fork:update
 bun run fork:update -- v1.18.30
 ```
 
-Run it only from a clean `dev` checkout with an `upstream` remote. It stops for merge conflicts so they can be resolved manually. Before replacement, the existing `~/.opencode/bin/opencode` is kept as a timestamped sibling backup. The built binary embeds the WebUI, so no separate frontend assets are installed.
+Run it only from a clean `dev` checkout with an `upstream` remote. It stops for merge conflicts so they can be resolved manually. Before replacement, the existing `~/.local/bin/opencode` is kept as a timestamped sibling backup. The built binary embeds the WebUI, so no separate frontend assets are installed.
+
+To build and install the current checkout without touching git (versioned from the latest tag unless one is passed; the previous binary is kept as `~/.local/bin/opencode.bak`):
+
+```bash
+bun run fork:rebuild
+bun run fork:rebuild -- v1.18.29
+```
+
+Always install through these scripts. Copying a new build over the installed binary in place makes macOS kill it with `Code Signature Invalid`.
 
 ### Agents
 

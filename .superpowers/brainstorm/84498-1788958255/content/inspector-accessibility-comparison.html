@@ -1,0 +1,37 @@
+<h2>Inspector focus order</h2>
+<p class="subtitle">Both versions keep the same right-side rail, two actions, and hover preview. The difference is how keyboard focus moves through it.</p>
+
+<div class="split">
+  <div class="mockup" data-choice="current" onclick="toggleSelect(this)">
+    <div class="mockup-header">Current composition</div>
+    <div class="mockup-body" style="min-height:330px;position:relative;background:#111827;color:#e5e7eb;padding:20px;overflow:hidden">
+      <div style="position:absolute;inset:20px 86px 20px 20px;border:1px solid #334155;border-radius:8px;padding:16px;color:#94a3b8">Session content</div>
+      <div style="position:absolute;right:20px;top:20px;bottom:20px;width:48px;border-left:1px solid #475569;background:#0f172a;padding:8px 6px">
+        <div style="border:2px dashed #f59e0b;border-radius:6px;padding:3px;margin-bottom:8px">
+          <button style="width:100%;height:32px;border:0;border-radius:4px;background:#334155;color:#fff">Review</button>
+        </div>
+        <div style="border:2px dashed #f59e0b;border-radius:6px;padding:3px">
+          <button style="width:100%;height:32px;border:0;border-radius:4px;background:#334155;color:#fff">Files</button>
+        </div>
+      </div>
+      <div style="position:absolute;left:20px;bottom:16px;font:12px/1.4 ui-monospace,monospace;color:#fbbf24">Tab: wrapper → Review button → wrapper → Files button</div>
+    </div>
+    <div class="card-body"><h3>Nested interactive controls</h3><p>Dashed wrappers are focusable links around native buttons. The action still works, but keyboard users must tab through four stops for two actions.</p></div>
+  </div>
+
+  <div class="mockup" data-choice="proposed" onclick="toggleSelect(this)">
+    <div class="mockup-header">Proposed composition</div>
+    <div class="mockup-body" style="min-height:330px;position:relative;background:#111827;color:#e5e7eb;padding:20px;overflow:hidden">
+      <div style="position:absolute;inset:20px 86px 20px 20px;border:1px solid #334155;border-radius:8px;padding:16px;color:#94a3b8">Session content</div>
+      <div style="position:absolute;right:20px;top:20px;bottom:20px;width:48px;border-left:1px solid #475569;background:#0f172a;padding:8px 6px">
+        <button style="width:100%;height:38px;border:2px solid #60a5fa;border-radius:6px;background:#334155;color:#fff;margin-bottom:8px">Review</button>
+        <button style="width:100%;height:38px;border:0;border-radius:6px;background:#334155;color:#fff">Files</button>
+      </div>
+      <div style="position:absolute;right:82px;top:44px;width:116px;border:1px solid #64748b;border-radius:6px;background:#1e293b;padding:8px;font-size:11px;color:#e2e8f0">Review<br><span style="color:#94a3b8">3 changes</span></div>
+      <div style="position:absolute;left:20px;bottom:16px;font:12px/1.4 ui-monospace,monospace;color:#93c5fd">Tab: Review button → Files button</div>
+    </div>
+    <div class="card-body"><h3>One native button per action</h3><p>The existing count preview stays on hover. Each action is one focus stop, with no link wrapper and no duplicate tooltip.</p></div>
+  </div>
+</div>
+
+<p class="subtitle">Click an option if you want to select it, then reply in the terminal. The recommended change affects interaction semantics, not visual layout.</p>

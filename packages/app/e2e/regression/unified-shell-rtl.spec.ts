@@ -30,6 +30,21 @@ test.describe("unified shell responsive and direction behavior", () => {
     await expect(path).toHaveAttribute("dir", "ltr")
   })
 
+  test("keeps the inspector rail inside the viewport before any panel is pinned", async ({ page }) => {
+    await setup(page)
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.goto(sessionHref)
+
+    const inspector = page.locator('[data-component="contextual-inspector"]')
+    await expect(inspector).toBeVisible()
+    await expect
+      .poll(async () => {
+        const box = await inspector.boundingBox()
+        return box ? Math.round(box.x + box.width) : Number.POSITIVE_INFINITY
+      })
+      .toBeLessThanOrEqual(1280)
+  })
+
   test("uses the configured desktop density and removes the sidebar from focus navigation", async ({ page }) => {
     await setup(page)
     await page.setViewportSize({ width: 1440, height: 900 })

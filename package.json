@@ -16,6 +16,7 @@
     "typecheck": "bun turbo typecheck",
     "fork:update": "bun run script/fork-update.ts",
     "fork:setup": "bun run script/fork-setup.ts",
+    "fork:rebuild": "bun run script/fork-rebuild.ts",
     "upgrade-opentui": "bun run script/upgrade-opentui.ts",
     "postinstall": "bun run --cwd packages/core fix-node-pty",
     "prepare": "husky",

@@ -54,5 +54,5 @@ export function groupSidebarSessions(input: {
     } satisfies UnifiedSidebarGroup,
     ...projects,
   ]
-  return query ? result.filter((group) => group.sessions.length > 0) : result
+  return result.filter((group) => group.sessions.length > 0)
 }

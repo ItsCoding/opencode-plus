@@ -193,6 +193,8 @@ function content(value: ModelMessage["content"]) {
       if (part.type === "text") return part.text
       if (part.type === "tool-call" || part.type === "tool-result") return JSON.stringify(part)
       if (part.type === "reasoning") return ""
+      if (part.type === "file")
+        return `ERROR: Cannot read attached file "${part.filename ?? "file"}" (Claude Code does not support file input). Inform the user.`
       throw new Error(`Claude Code cannot project ${part.type} history`)
     })
     .join("\n")

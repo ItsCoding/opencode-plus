@@ -133,21 +133,35 @@ mock.module("@/pages/home-session-archive", () => ({
 }))
 mock.module("@/utils/toast", () => ({ showToast: () => {} }))
 mock.module("@opencode-ai/ui/icon", () => ({ Icon: () => document.createElement("span") }))
+const settingsOpened: Array<string | undefined> = []
+const externalOpened: string[] = []
+mock.module("@/components/settings-dialog", () => ({
+  useSettingsDialog: (tab?: string) => () => settingsOpened.push(tab),
+}))
+mock.module("@/context/platform", () => ({
+  usePlatform: () => ({ openExternal: (url: string) => externalOpened.push(url) }),
+}))
+mock.module("@/context/layout", () => ({
+  getAvatarColors: () => ({ background: "red", foreground: "white" }),
+}))
 mock.module("../src/pages/layout/sidebar-items", () => ({
   SessionItem: (props: {
     session: Session
     href?: string
     dense?: boolean
+    meta?: string
     onSelect?: (session: Session) => void
   }) => {
     const button = document.createElement("button")
     button.dataset.sessionId = props.session.id
     if (props.href) button.dataset.href = props.href
+    if (props.meta) button.dataset.meta = props.meta
     button.dataset.dense = props.dense ? "true" : "false"
     button.textContent = props.session.title
     button.addEventListener("click", () => props.onSelect?.(props.session))
     return button
   },
+  SessionSkeleton: () => document.createElement("div"),
 }))
 
 const { createUnifiedSidebarController } = await import("../src/pages/layout/unified-sidebar-controller")
@@ -161,7 +175,7 @@ test("controller wires the selected server session cache and sidebar side effect
     await Promise.resolve()
 
     expect(listCalls).toHaveLength(1)
-    expect(controller.groups().map((group) => group.key)).toEqual(["chats", "/project"])
+    expect(controller.groups().map((group) => group.key)).toEqual(["/project"])
 
     controller.setQuery("rtl")
     expect(controller.query()).toBe("rtl")
@@ -226,14 +240,21 @@ test("view exposes search, expansion, session selection, density, and mobile clo
 
   ;(host.querySelector("button[data-action=sidebar-new-session]") as HTMLButtonElement).click()
   expect(newSessions).toEqual(["new"])
-  ;(host.querySelector("nav button") as HTMLButtonElement).click()
+  ;(host.querySelector("button[data-action=sidebar-show-all]") as HTMLButtonElement).click()
   expect(toggled).toEqual(["/project"])
 
   const item = host.querySelector("button[data-session-id=session-1]") as HTMLButtonElement
   expect(item.dataset.href).toBe("/server/c2VsZWN0ZWQtc2VydmVy/session/session-1")
   expect(item.dataset.dense).toBe("true")
+  expect(item.dataset.meta).toBe("common.time.daysAgo.short")
   item.click()
   expect(closeCalls).toEqual(["closed"])
+
+  ;(host.querySelector("button[data-action=sidebar-settings]") as HTMLButtonElement).click()
+  ;(host.querySelector("button[data-action=sidebar-shortcuts]") as HTMLButtonElement).click()
+  ;(host.querySelector("button[data-action=sidebar-help]") as HTMLButtonElement).click()
+  expect(settingsOpened).toEqual([undefined, "shortcuts"])
+  expect(externalOpened).toHaveLength(1)
 
   dispose()
   host.remove()

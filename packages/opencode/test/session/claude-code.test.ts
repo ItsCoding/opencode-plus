@@ -31,6 +31,19 @@ test("omits reasoning history when a Claude session cannot resume", () => {
   expect(ClaudeCodeLLM.project(messages, false)).toBe("USER:\nfirst\n\nASSISTANT:\n\n\nUSER:\nsecond")
 })
 
+test("projects file history as an unsupported attachment notice", () => {
+  const messages = [
+    {
+      role: "user" as const,
+      content: [{ type: "file" as const, mediaType: "image/png", filename: "diagram.png", data: "data:image/png;base64,AAAA" }],
+    },
+  ]
+
+  expect(ClaudeCodeLLM.project(messages, false)).toBe(
+    'USER:\nERROR: Cannot read attached file "diagram.png" (Claude Code does not support file input). Inform the user.',
+  )
+})
+
 test("accepts resume metadata only when process, alias, model, and lineage match", () => {
   const mapping = {
     sessionID: "sdk-session",

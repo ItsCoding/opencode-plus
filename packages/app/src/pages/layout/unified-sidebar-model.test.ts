@@ -68,6 +68,16 @@ describe("groupSidebarSessions", () => {
     expect(groups.find((group) => group.key === "/alpha")?.sessions[0]?.id).toBe("sandbox")
   })
 
+  test("omits projects and chats without sessions", () => {
+    const groups = groupSidebarSessions({
+      projects: [...projects, project("/empty", "empty")],
+      sessions: [session({ id: "alpha-only", projectID: "alpha", directory: "/alpha", updated: 1 })],
+      expanded: new Set(),
+      query: "",
+    })
+    expect(groups.map((group) => group.key)).toEqual(["/alpha"])
+  })
+
   test("uses id as a deterministic tie breaker", () => {
     const groups = groupSidebarSessions({
       projects,

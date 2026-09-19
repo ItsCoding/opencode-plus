@@ -82,6 +82,7 @@ export type SessionItemProps = {
   onSelect?: (session: Session) => void
   mobile?: boolean
   dense?: boolean
+  meta?: string
   showTooltip?: boolean
   showChild?: boolean
   level?: number
@@ -98,6 +99,7 @@ const SessionRow = (props: {
   onSelect?: (session: Session) => void
   mobile?: boolean
   dense?: boolean
+  meta?: string
   tint: Accessor<string | undefined>
   isWorking: Accessor<boolean>
   hasPermissions: Accessor<boolean>
@@ -149,6 +151,9 @@ const SessionRow = (props: {
       <span class="text-14-regular text-text-strong min-w-0 flex-1 truncate">
         <bdi dir="auto">{title()}</bdi>
       </span>
+      <Show when={props.meta}>
+        <span class="shrink-0 text-12-regular text-text-weak tabular-nums">{props.meta}</span>
+      </Show>
     </A>
   )
 }
@@ -215,6 +220,7 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
       onSelect={props.onSelect}
       mobile={props.mobile}
       dense={props.dense}
+      meta={props.meta}
       tint={tint}
       isWorking={isWorking}
       hasPermissions={hasPermissions}
